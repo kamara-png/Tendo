@@ -3,8 +3,8 @@ import { styles } from "../../styles/styles";
 
 export default function StreaksScreen() {
   return (
-    <View style={styles.container}>
-      <Text style={styles.text}>Streaks screen</Text>
+    <View style={[styles.container, styles.centered]}>
+      <Text style={styles.stubText}>Streaks</Text>
     </View>
   );
 }
