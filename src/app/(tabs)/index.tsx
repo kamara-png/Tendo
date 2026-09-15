@@ -1,11 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
-  FlatList,
   Modal,
   Pressable,
+  SectionList,
   StyleSheet,
   Text,
   TextInput,
@@ -18,9 +18,26 @@ type Habit = {
   id: string;
   name: string;
   completed: boolean;
+  createdAt: number;
 };
 
 const STORAGE_KEY = "habits";
+
+type HabitSection = {
+  key: string;
+  title: string;
+  data: Habit[];
+};
+
+const sectionHeaderStyle = StyleSheet.create({
+  text: {
+    color: "#8a8f98",
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 8,
+    marginTop: 16,
+  },
+}).text;
 
 export default function Index() {
   const [habits, setHabits] = useState<Habit[]>([]);
@@ -29,7 +46,17 @@ export default function Index() {
     const loadHabits = async () => {
       try {
         const stored = await AsyncStorage.getItem(STORAGE_KEY);
-        if (stored) setHabits(JSON.parse(stored));
+        if (stored) {
+          const parsed: Habit[] = JSON.parse(stored);
+          setHabits(
+            parsed.map((h) => ({
+              id: h.id,
+              name: h.name,
+              completed: h.completed,
+              createdAt: h.createdAt ?? Date.now(),
+            })),
+          );
+        }
       } catch (error) {
         console.error("Failed to load habits", error);
       }
@@ -80,10 +107,13 @@ export default function Index() {
   const onSave = () => {
     if (!inputText.trim()) return;
     if (editingId === null) {
-      setHabits((prev) => [
-        ...prev,
-        { id: Date.now().toString(), name: inputText.trim(), completed: false },
-      ]);
+      const newHabit: Habit = {
+        id: Date.now().toString(),
+        name: inputText.trim(),
+        completed: false,
+        createdAt: Date.now(),
+      };
+      setHabits((prev) => [newHabit, ...prev]);
     } else {
       setHabits((prev) =>
         prev.map((h) =>
@@ -148,47 +178,72 @@ export default function Index() {
     }).start(() => setDeleted(null));
   };
 
+  const sections = useMemo<HabitSection[]>(() => {
+    const sorted = [...habits].sort((a, b) => b.createdAt - a.createdAt);
+    const byDay = new Map<string, Habit[]>();
+    for (const habit of sorted) {
+      const key = new Date(habit.createdAt).toDateString();
+      const existing = byDay.get(key);
+      if (existing) existing.push(habit);
+      else byDay.set(key, [habit]);
+    }
+    return Array.from(byDay.entries()).map(([key, data]) => ({
+      key,
+      title: new Date(data[0].createdAt).toLocaleDateString([], {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      }),
+      data,
+    }));
+  }, [habits]);
+
+  const renderHabit = ({ item }: { item: Habit }) => (
+    <TouchableOpacity onPress={() => toggleHabit(item.id)} activeOpacity={0.7}>
+      <View style={styles.habitRow}>
+        <Ionicons
+          name={item.completed ? "checkmark-circle" : "ellipse-outline"}
+          size={sizes.icon}
+          color={item.completed ? "yellow" : "white"}
+        />
+        <Text style={styles.habitName}>{item.name}</Text>
+
+        <Pressable
+          style={styles.editButton}
+          onPress={() => openEditModal(item.id, item.name)}
+          hitSlop={8}
+        >
+          <Ionicons name="create" size={20} color="#8a8f98" />
+        </Pressable>
+
+        <Pressable
+          style={styles.deleteButton}
+          onPress={() => deleteHabit(item.id)}
+          hitSlop={8}
+        >
+          <Ionicons name="trash" size={20} color="#e74c3c" />
+        </Pressable>
+      </View>
+    </TouchableOpacity>
+  );
+
+  const renderSectionHeader = ({ section }: { section: HabitSection }) => (
+    <Text style={sectionHeaderStyle}>{section.title}</Text>
+  );
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>To do's</Text>
+        <Text style={styles.headerTitle}>{"To do's"}</Text>
       </View>
 
-      <FlatList
-        data={habits}
+      <SectionList
+        sections={sections}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            onPress={() => toggleHabit(item.id)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.habitRow}>
-              <Ionicons
-                name={item.completed ? "checkmark-circle" : "ellipse-outline"}
-                size={sizes.icon}
-                color={item.completed ? "yellow" : "white"}
-              />
-              <Text style={styles.habitName}>{item.name}</Text>
-
-              <Pressable
-                style={styles.editButton}
-                onPress={() => openEditModal(item.id, item.name)}
-                hitSlop={8}
-              >
-                <Ionicons name="create" size={20} color="#8a8f98" />
-              </Pressable>
-
-              <Pressable
-                style={styles.deleteButton}
-                onPress={() => deleteHabit(item.id)}
-                hitSlop={8}
-              >
-                <Ionicons name="trash" size={20} color="#e74c3c" />
-              </Pressable>
-            </View>
-          </TouchableOpacity>
-        )}
+        stickySectionHeadersEnabled={false}
+        renderSectionHeader={renderSectionHeader}
+        renderItem={renderHabit}
       />
 
       <Pressable style={styles.fab} onPress={openAddModal}>

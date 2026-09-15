@@ -151,6 +151,83 @@ export const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
   },
+  noteHeader: {
+    paddingTop: 60,
+    paddingBottom: 20,
+    alignItems: "center",
+  },
+  noteNewButton: {
+    position: "absolute",
+    right: 20,
+    top: 54,
+    padding: 8,
+  },
+  noteListContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 120,
+  },
+  noteCard: {
+    backgroundColor: "#1e2126",
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 10,
+  },
+  noteCardTitle: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  noteCardPreview: {
+    color: "#8a8f98",
+    fontSize: 13,
+  },
+  noteCardDate: {
+    color: "#8a8f98",
+    fontSize: 11,
+    marginTop: 6,
+  },
+  noteEditorContainer: {
+    flex: 1,
+    paddingTop: 54,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+  },
+  noteEditorHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
+  },
+  noteEditorHeaderTitle: {
+    color: "yellow",
+    fontSize: 20,
+    fontWeight: "800",
+    flex: 1,
+    marginHorizontal: 12,
+    textAlign: "center",
+  },
+  noteEditorTitleInput: {
+    color: "white",
+    fontSize: 22,
+    fontWeight: "800",
+    padding: 0,
+    marginBottom: 12,
+  },
+  noteEditorDivider: {
+    borderBottomColor: "#33373d",
+    borderBottomWidth: 1,
+    marginBottom: 16,
+  },
+  noteEditorBodyInput: {
+    color: "white",
+    fontSize: 16,
+    lineHeight: 24,
+    padding: 0,
+    flex: 1,
+    textAlignVertical: "top",
+  },
 });
 
 export const sizes = {

@@ -20,7 +20,7 @@ export default function TabLayout() {
         options={{
           title: "Todos",
           tabBarIcon: ({ color }) => (
-            <Ionicons size={sizes.icon} name="checkbox-outline" color={color} />
+            <Ionicons size={sizes.icon} name="checkmark-circle" color={color} />
           ),
         }}
       />
@@ -29,11 +29,7 @@ export default function TabLayout() {
         options={{
           title: "Notes",
           tabBarIcon: ({ color }) => (
-            <Ionicons
-              size={sizes.icon}
-              name="document-text-outline"
-              color={color}
-            />
+            <Ionicons size={sizes.icon} name="document" color={color} />
           ),
         }}
       />
@@ -42,7 +38,7 @@ export default function TabLayout() {
         options={{
           title: "Streaks",
           tabBarIcon: ({ color }) => (
-            <Ionicons size={sizes.icon} name="flame-outline" color={color} />
+            <Ionicons size={sizes.icon} name="flame" color={color} />
           ),
         }}
       />
@@ -51,11 +47,7 @@ export default function TabLayout() {
         options={{
           title: "Stats",
           tabBarIcon: ({ color }) => (
-            <Ionicons
-              size={sizes.icon}
-              name="stats-chart-outline"
-              color={color}
-            />
+            <Ionicons size={sizes.icon} name="podium" color={color} />
           ),
         }}
       />
@@ -64,7 +56,7 @@ export default function TabLayout() {
         options={{
           title: "Settings",
           tabBarIcon: ({ color }) => (
-            <Ionicons size={sizes.icon} name="settings-outline" color={color} />
+            <Ionicons size={sizes.icon} name="settings" color={color} />
           ),
         }}
       />
