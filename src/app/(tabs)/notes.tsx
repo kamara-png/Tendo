@@ -1,24 +1,30 @@
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
+  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { styles } from "../../styles/styles";
-
-type Note = {
-  id: string;
-  title: string;
-  body: string;
-  updatedAt: number;
-};
-
-const STORAGE_KEY = "notes";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import { colorForIndex } from "../../lib/colors";
+import { readSettings } from "../../lib/settings";
+import {
+  loadNotes,
+  saveNotes,
+  type Note,
+} from "../../lib/storage";
+import { sizes } from "../../styles/styles";
+import { useAppTheme } from "../../theme";
 
 const formatDate = (ts: number) =>
   new Date(ts).toLocaleString([], {
@@ -28,34 +34,68 @@ const formatDate = (ts: number) =>
     minute: "2-digit",
   });
 
+/** Collapse whitespace for a single-line list preview. */
+const previewText = (text: string) => text.replace(/\s+/g, " ").trim();
+
 export default function NotesScreen() {
+  const { colors, styles } = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const bottomPad = insets.bottom + sizes.tabBarHeight + 24;
   const [notes, setNotes] = useState<Note[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [searchVisible, setSearchVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [tagInput, setTagInput] = useState("");
 
   useEffect(() => {
-    const loadNotes = async () => {
-      try {
-        const stored = await AsyncStorage.getItem(STORAGE_KEY);
-        if (stored) setNotes(JSON.parse(stored));
-      } catch (error) {
-        console.error("Failed to load notes", error);
-      }
+    let active = true;
+    const loadNotesFromStorage = async () => {
+      const stored = await loadNotes();
+      if (active) setNotes(stored);
     };
-    loadNotes();
+    void loadNotesFromStorage();
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
-    const saveNotes = async () => {
-      try {
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
-      } catch (error) {
-        console.error("Failed to save notes", error);
-      }
-    };
-    saveNotes();
+    void saveNotes(notes);
   }, [notes]);
 
   const selected = notes.find((n) => n.id === selectedId) ?? null;
+
+  const allTags = useMemo(
+    () => Array.from(new Set(notes.flatMap((n) => n.tags))).sort(),
+    [notes],
+  );
+
+  const visibleNotes = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const filtered = notes.filter((n) => {
+      const matchesTag = !activeTag || n.tags.includes(activeTag);
+      const matchesQuery =
+        !q ||
+        n.title.toLowerCase().includes(q) ||
+        n.body.toLowerCase().includes(q);
+      return matchesTag && matchesQuery;
+    });
+    return filtered.sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return b.updatedAt - a.updatedAt;
+    });
+  }, [notes, searchQuery, activeTag]);
+
+  const toggleSearch = () => {
+    if (searchVisible) setSearchQuery("");
+    setSearchVisible((v) => !v);
+  };
+
+  const selectNote = (id: string | null) => {
+    setTagInput("");
+    setSelectedId(id);
+  };
 
   const createNote = () => {
     const note: Note = {
@@ -63,12 +103,16 @@ export default function NotesScreen() {
       title: "",
       body: "",
       updatedAt: Date.now(),
+      pinned: false,
+      tags: [],
     };
     setNotes((prev) => [note, ...prev]);
-    setSelectedId(note.id);
+    selectNote(note.id);
   };
 
-  const updateSelected = (patch: Partial<Pick<Note, "title" | "body">>) => {
+  const updateSelected = (
+    patch: Partial<Pick<Note, "title" | "body" | "pinned" | "tags">>,
+  ) => {
     if (!selectedId) return;
     setNotes((prev) =>
       prev.map((n) =>
@@ -77,89 +121,346 @@ export default function NotesScreen() {
     );
   };
 
-  const deleteSelected = () => {
+  const togglePinned = () => {
+    if (!selected) return;
+    updateSelected({ pinned: !selected.pinned });
+  };
+
+  const addTag = () => {
+    if (!selected) return;
+    const tag = tagInput.trim().toLowerCase().replace(/^#/, "");
+    if (!tag || selected.tags.includes(tag)) {
+      setTagInput("");
+      return;
+    }
+    updateSelected({ tags: [...selected.tags, tag] });
+    setTagInput("");
+  };
+
+  const removeTag = (tag: string) => {
+    if (!selected) return;
+    updateSelected({ tags: selected.tags.filter((t) => t !== tag) });
+  };
+
+  const removeSelected = () => {
     if (!selectedId) return;
     setNotes((prev) => prev.filter((n) => n.id !== selectedId));
     setSelectedId(null);
+    setTagInput("");
   };
 
-  const renderNote = ({ item }: { item: Note }) => (
+  const deleteSelected = async () => {
+    if (!selectedId) return;
+    const { confirmDelete } = await readSettings();
+    if (!confirmDelete) {
+      removeSelected();
+      return;
+    }
+    Alert.alert("Delete note?", "This note will be removed.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: removeSelected },
+    ]);
+  };
+
+  const renderNote = ({ item, index }: { item: Note; index: number }) => (
     <TouchableOpacity
-      onPress={() => setSelectedId(item.id)}
+      onPress={() => selectNote(item.id)}
       activeOpacity={0.7}
     >
       <View style={styles.noteCard}>
-        <Text style={styles.noteCardTitle} numberOfLines={1}>
-          {item.title.trim() || "New Note"}
-        </Text>
-        <Text style={styles.noteCardPreview} numberOfLines={2}>
-          {item.body.trim() || "No additional text"}
-        </Text>
-        <Text style={styles.noteCardDate}>{formatDate(item.updatedAt)}</Text>
+        <View style={{ flexDirection: "row", gap: 12 }}>
+          <Ionicons
+            name="document-text"
+            size={20}
+            color={colorForIndex(index, colors.palette)}
+            style={{ marginTop: 2 }}
+          />
+          <View style={{ flex: 1 }}>
+            <View style={styles.noteCardTitleRow}>
+              <Text style={styles.noteCardTitle} numberOfLines={1}>
+                {item.title.trim() || "New Note"}
+              </Text>
+              {item.pinned ? (
+                <Ionicons name="pin" size={15} color={colors.accent} />
+              ) : null}
+            </View>
+            <Text style={styles.noteCardPreview} numberOfLines={2}>
+              {previewText(item.body) || "No additional text"}
+            </Text>
+            {item.tags.length > 0 ? (
+              <View style={styles.noteCardTags}>
+                {item.tags.slice(0, 4).map((tag) => (
+                  <View key={tag} style={styles.noteCardTag}>
+                    <Text
+                      style={styles.noteCardTagText}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
+                      #{tag}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+            <Text style={styles.noteCardDate}>{formatDate(item.updatedAt)}</Text>
+          </View>
+        </View>
       </View>
     </TouchableOpacity>
   );
 
   if (selected) {
     return (
-      <View style={styles.container}>
-        <View style={styles.noteEditorContainer}>
-          <View style={styles.noteEditorHeader}>
-            <Pressable onPress={() => setSelectedId(null)} hitSlop={8}>
-              <Ionicons name="chevron-back" size={26} color="yellow" />
-            </Pressable>
-            <Text style={styles.noteEditorHeaderTitle} numberOfLines={1}>
-              Notes
-            </Text>
-            <Pressable onPress={deleteSelected} hitSlop={8}>
-              <Ionicons name="trash" size={22} color="#e74c3c" />
-            </Pressable>
-          </View>
+      <SafeAreaView edges={["top"]} style={styles.container}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={0}
+        >
+          <View style={styles.noteEditorContainer}>
+            <View style={styles.noteEditorHeader}>
+              <Pressable
+                onPress={() => selectNote(null)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Back to notes"
+              >
+                <Ionicons name="chevron-back" size={26} color={colors.accent} />
+              </Pressable>
+              <Text style={styles.noteEditorHeaderTitle} numberOfLines={1}>
+                Notes
+              </Text>
+              <View style={styles.noteEditorHeaderActions}>
+                <Pressable
+                  onPress={togglePinned}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: selected.pinned }}
+                  accessibilityLabel={
+                    selected.pinned ? "Unpin note" : "Pin note"
+                  }
+                >
+                  <Ionicons
+                    name={selected.pinned ? "pin" : "pin-outline"}
+                    size={22}
+                    color={selected.pinned ? colors.accent : colors.muted}
+                  />
+                </Pressable>
+                <Pressable
+                  onPress={deleteSelected}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete note"
+                >
+                  <Ionicons name="trash" size={22} color={colors.danger} />
+                </Pressable>
+              </View>
+            </View>
 
           <TextInput
             style={styles.noteEditorTitleInput}
             placeholder="Title"
-            placeholderTextColor="#6b7280"
+            placeholderTextColor={colors.muted}
             value={selected.title}
             onChangeText={(title) => updateSelected({ title })}
             autoFocus={false}
           />
+          <View style={styles.noteTagsWrap}>
+            {selected.tags.map((tag) => (
+              <Pressable
+                key={tag}
+                style={styles.noteTagChip}
+                onPress={() => removeTag(tag)}
+                hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove tag ${tag}`}
+              >
+                <Text
+                  style={styles.noteTagChipText}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  #{tag}
+                </Text>
+                <Ionicons name="close" size={13} color={colors.accent} />
+              </Pressable>
+            ))}
+            <TextInput
+              style={styles.noteTagInput}
+              placeholder="Add tag"
+              placeholderTextColor={colors.muted}
+              value={tagInput}
+              onChangeText={setTagInput}
+              onSubmitEditing={addTag}
+              onBlur={addTag}
+              returnKeyType="done"
+              autoCapitalize="none"
+              autoCorrect={false}
+              blurOnSubmit={false}
+            />
+          </View>
           <View style={styles.noteEditorDivider} />
           <TextInput
             style={styles.noteEditorBodyInput}
             placeholder="Start writing..."
-            placeholderTextColor="#6b7280"
+            placeholderTextColor={colors.muted}
             value={selected.body}
             onChangeText={(body) => updateSelected({ body })}
             multiline
             textAlignVertical="top"
           />
+          <Pressable
+            style={[
+              styles.modalButton,
+              styles.saveButton,
+              { alignItems: "center", marginTop: 12 },
+            ]}
+            onPress={() => selectNote(null)}
+          >
+            <Text style={[styles.modalButtonText, styles.saveButtonText]}>
+              Save
+            </Text>
+          </Pressable>
         </View>
-      </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.noteHeader}>
+    <SafeAreaView edges={["top"]} style={styles.container}>
+      <View style={styles.header}>
+        <View style={[styles.headerSide, { width: 76 }]} />
         <Text style={styles.headerTitle}>Notes</Text>
-        <Pressable style={styles.noteNewButton} onPress={createNote} hitSlop={8}>
-          <Ionicons name="add" size={28} color="yellow" />
-        </Pressable>
+        <View
+          style={[
+            styles.headerSide,
+            { width: 76, flexDirection: "row", gap: 14 },
+          ]}
+        >
+          <Pressable
+            onPress={toggleSearch}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Search notes"
+          >
+            <Ionicons
+              name={searchVisible ? "close" : "search"}
+              size={24}
+              color={colors.accent}
+            />
+          </Pressable>
+          <Pressable
+            onPress={createNote}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="New note"
+          >
+            <Ionicons name="add" size={28} color={colors.accent} />
+          </Pressable>
+        </View>
       </View>
+
+      {searchVisible ? (
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
+            paddingHorizontal: 20,
+            paddingBottom: 12,
+          }}
+        >
+          <Ionicons name="search" size={18} color={colors.muted} />
+          <TextInput
+            style={[styles.modalInput, { flex: 1, marginBottom: 0 }]}
+            placeholder="Search notes"
+            placeholderTextColor={colors.muted}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoFocus
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {searchQuery ? (
+            <Pressable onPress={() => setSearchQuery("")} hitSlop={8}>
+              <Ionicons name="close-circle" size={20} color={colors.muted} />
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
+      {allTags.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.noteFilterRow}
+        >
+          <Pressable
+            onPress={() => setActiveTag(null)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: activeTag === null }}
+            style={[
+              styles.noteFilterChip,
+              activeTag === null && styles.noteFilterChipActive,
+            ]}
+          >
+            <Text
+              style={[
+                styles.noteFilterChipText,
+                activeTag === null && styles.noteFilterChipTextActive,
+              ]}
+            >
+              All
+            </Text>
+          </Pressable>
+          {allTags.map((tag) => {
+            const active = activeTag === tag;
+            return (
+              <Pressable
+                key={tag}
+                onPress={() => setActiveTag(active ? null : tag)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                style={[
+                  styles.noteFilterChip,
+                  active && styles.noteFilterChipActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.noteFilterChipText,
+                    active && styles.noteFilterChipTextActive,
+                  ]}
+                >
+                  #{tag}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      ) : null}
 
       {notes.length === 0 ? (
         <View style={styles.centered}>
-          <Text style={styles.stubText}>No notes yet</Text>
+          <Text style={styles.stubText}>{"Let's create your first note"}</Text>
         </View>
       ) : (
         <FlatList
-          data={notes}
+          data={visibleNotes}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.noteListContent}
+          contentContainerStyle={[
+            styles.noteListContent,
+            { paddingBottom: bottomPad },
+          ]}
           renderItem={renderNote}
+          ListEmptyComponent={
+            <View style={styles.centered}>
+              <Text style={styles.stubText}>No matching notes</Text>
+            </View>
+          }
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }

@@ -41,3 +41,8 @@ example
 # generated native folders
 /ios
 /android
+
+# local release artifacts (large; rebuilt via EAS)
+release/
+
+release/
