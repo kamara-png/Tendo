@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState, type ComponentProps } from "react";
 import {
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -217,6 +216,7 @@ export default function StatisticsScreen() {
     streaks: 0,
   });
   const [habitsDone, setHabitsDone] = useState(0);
+  const [habitsCompleted, setHabitsCompleted] = useState(0);
   const [notesWords, setNotesWords] = useState(0);
   const [notesChars, setNotesChars] = useState(0);
   const [checkedToday, setCheckedToday] = useState(0);
@@ -226,7 +226,7 @@ export default function StatisticsScreen() {
   const [totalCheckins, setTotalCheckins] = useState(0);
   const [bestWeekday, setBestWeekday] = useState("—");
   const [topStreaks, setTopStreaks] = useState<TopStreak[]>([]);
-  const [range, setRange] = useState<RangeKey>("7d");
+  const range: RangeKey = "all";
   const [heatmap, setHeatmap] = useState<HeatmapCell[][]>([]);
   const [thisWeekCheckins, setThisWeekCheckins] = useState(0);
   const [lastWeekCheckins, setLastWeekCheckins] = useState(0);
@@ -336,6 +336,9 @@ export default function StatisticsScreen() {
           setHabitsDone(
             habits.filter((h) => h.completedDate === todayKeyValue).length,
           );
+          setHabitsCompleted(
+            habits.filter((h) => h.completedDate !== null).length,
+          );
           setNotesWords(words);
           setNotesChars(chars);
           setCheckedToday(
@@ -401,12 +404,12 @@ export default function StatisticsScreen() {
     }, [range]),
   );
 
-  const total = summary.habits + summary.notes + summary.streaks;
-  // Todos completed TODAY over all todos; 0 habits → 0%, all done → 100%.
+  const total = summary.habits;
+  const completed = habitsCompleted;
+  const pending = total - completed;
+  // Completed todos over all todos; 0 todos → 0%, all completed → 100%.
   const completionRate =
-    summary.habits === 0
-      ? 0
-      : Math.min(100, Math.round((habitsDone / summary.habits) * 100));
+    total === 0 ? 0 : Math.min(100, Math.round((completed / total) * 100));
   const maxBar = Math.max(1, ...weekBars.map((b) => b.count));
   const rangeLabel = RANGE_LABELS[range];
   const weekDelta = thisWeekCheckins - lastWeekCheckins;
@@ -431,30 +434,6 @@ export default function StatisticsScreen() {
       <ScrollView
         contentContainerStyle={[styles.statListContent, { paddingBottom: bottomPad }]}
       >
-        <View style={styles.rangeRow}>
-          {(Object.keys(RANGE_LABELS) as RangeKey[]).map((key) => {
-            const active = key === range;
-            return (
-              <Pressable
-                key={key}
-                onPress={() => setRange(key)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                style={[styles.rangeChip, active && styles.rangeChipActive]}
-              >
-                <Text
-                  style={[
-                    styles.rangeChipText,
-                    active && styles.rangeChipTextActive,
-                  ]}
-                >
-                  {RANGE_LABELS[key]}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
         <View style={styles.statSummaryRow}>
           <View style={styles.statSummaryCard}>
             <Ionicons
@@ -473,7 +452,7 @@ export default function StatisticsScreen() {
               color={colors.accent}
               style={styles.statSummaryIcon}
             />
-            <Text style={styles.statSummaryValue}>{checkedToday}</Text>
+            <Text style={styles.statSummaryValue}>{habitsDone}</Text>
             <Text style={styles.statSummaryLabel}>Checked Today</Text>
           </View>
           <View style={styles.statSummaryCard}>
@@ -517,7 +496,7 @@ export default function StatisticsScreen() {
                 style={[styles.donutDot, { backgroundColor: colors.accent }]}
               />
               <Text style={styles.donutLegendText}>
-                Completed · {habitsDone}
+                Completed · {completed}
               </Text>
             </View>
             <View style={styles.donutLegendItem}>
@@ -525,7 +504,7 @@ export default function StatisticsScreen() {
                 style={[styles.donutDot, { backgroundColor: colors.surfaceAlt }]}
               />
               <Text style={styles.donutLegendText}>
-                Pending · {summary.habits - habitsDone}
+                Pending · {pending}
               </Text>
             </View>
           </View>
@@ -542,12 +521,12 @@ export default function StatisticsScreen() {
           <StatRow
             icon="checkmark-circle"
             label="Completed"
-            value={String(habitsDone)}
+            value={String(completed)}
           />
           <StatRow
             icon="ellipse-outline"
             label="Pending"
-            value={String(summary.habits - habitsDone)}
+            value={String(pending)}
           />
           <View style={styles.statDivider} />
           <StatRow

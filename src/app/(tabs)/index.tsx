@@ -345,7 +345,7 @@ export default function Index() {
           ? {
               ...habit,
               completedDate:
-                habit.completedDate === today ? null : today,
+                habit.completedDate === null ? today : null,
             }
           : habit,
       ),
@@ -489,11 +489,7 @@ export default function Index() {
   };
 
   const sections = useMemo<HabitSection[]>(() => {
-    const today = todayKey();
-    const active = habits.filter((h) => h.completedDate === null);
-    const doneToday = habits.filter((h) => h.completedDate === today);
-
-    const sorted = [...active].sort((a, b) => b.createdAt - a.createdAt);
+    const sorted = [...habits].sort((a, b) => b.createdAt - a.createdAt);
     const byDay = new Map<string, Habit[]>();
     for (const habit of sorted) {
       const key = new Date(habit.createdAt).toDateString();
@@ -502,7 +498,7 @@ export default function Index() {
       else byDay.set(key, [habit]);
     }
 
-    const mainSections = Array.from(byDay.entries()).map(([key, data]) => ({
+    return Array.from(byDay.entries()).map(([key, data]) => ({
       key,
       title: new Date(data[0].createdAt).toLocaleDateString([], {
         weekday: "short",
@@ -511,20 +507,10 @@ export default function Index() {
       }),
       data,
     }));
-
-    if (doneToday.length > 0) {
-      mainSections.push({
-        key: "done-today",
-        title: "Done today",
-        data: [...doneToday].sort((a, b) => b.createdAt - a.createdAt),
-      });
-    }
-
-    return mainSections;
   }, [habits]);
 
   const renderHabit = ({ item, index }: { item: Habit; index: number }) => {
-    const checked = item.completedDate === todayKey();
+    const checked = item.completedDate !== null;
     return (
     <View style={styles.habitRow}>
       <Pressable

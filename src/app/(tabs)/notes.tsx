@@ -6,7 +6,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
@@ -46,8 +45,6 @@ export default function NotesScreen() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTag, setActiveTag] = useState<string | null>(null);
-  const [tagInput, setTagInput] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -80,26 +77,20 @@ export default function NotesScreen() {
 
   const selected = notes.find((n) => n.id === selectedId) ?? null;
 
-  const allTags = useMemo(
-    () => Array.from(new Set(notes.flatMap((n) => n.tags))).sort(),
-    [notes],
-  );
-
   const visibleNotes = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     const filtered = notes.filter((n) => {
-      const matchesTag = !activeTag || n.tags.includes(activeTag);
       const matchesQuery =
         !q ||
         n.title.toLowerCase().includes(q) ||
         n.body.toLowerCase().includes(q);
-      return matchesTag && matchesQuery;
+      return matchesQuery;
     });
     return filtered.sort((a, b) => {
       if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
       return b.updatedAt - a.updatedAt;
     });
-  }, [notes, searchQuery, activeTag]);
+  }, [notes, searchQuery]);
 
   const toggleSearch = () => {
     if (searchVisible) setSearchQuery("");
@@ -107,7 +98,6 @@ export default function NotesScreen() {
   };
 
   const selectNote = (id: string | null) => {
-    setTagInput("");
     setSelectedId(id);
   };
 
@@ -125,7 +115,7 @@ export default function NotesScreen() {
   };
 
   const updateSelected = (
-    patch: Partial<Pick<Note, "title" | "body" | "pinned" | "tags">>,
+    patch: Partial<Pick<Note, "title" | "body" | "pinned">>,
   ) => {
     if (!selectedId) return;
     setNotes((prev) =>
@@ -140,27 +130,10 @@ export default function NotesScreen() {
     updateSelected({ pinned: !selected.pinned });
   };
 
-  const addTag = () => {
-    if (!selected) return;
-    const tag = tagInput.trim().toLowerCase().replace(/^#/, "");
-    if (!tag || selected.tags.includes(tag)) {
-      setTagInput("");
-      return;
-    }
-    updateSelected({ tags: [...selected.tags, tag] });
-    setTagInput("");
-  };
-
-  const removeTag = (tag: string) => {
-    if (!selected) return;
-    updateSelected({ tags: selected.tags.filter((t) => t !== tag) });
-  };
-
   const removeSelected = () => {
     if (!selectedId) return;
     setNotes((prev) => prev.filter((n) => n.id !== selectedId));
     setSelectedId(null);
-    setTagInput("");
   };
 
   const deleteSelected = async () => {
@@ -201,21 +174,6 @@ export default function NotesScreen() {
             <Text style={styles.noteCardPreview} numberOfLines={2}>
               {previewText(item.body) || "No additional text"}
             </Text>
-            {item.tags.length > 0 ? (
-              <View style={styles.noteCardTags}>
-                {item.tags.slice(0, 4).map((tag) => (
-                  <View key={tag} style={styles.noteCardTag}>
-                    <Text
-                      style={styles.noteCardTagText}
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
-                    >
-                      #{tag}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            ) : null}
             <Text style={styles.noteCardDate}>{formatDate(item.updatedAt)}</Text>
           </View>
         </View>
@@ -279,40 +237,6 @@ export default function NotesScreen() {
             onChangeText={(title) => updateSelected({ title })}
             autoFocus={false}
           />
-          <View style={styles.noteTagsWrap}>
-            {selected.tags.map((tag) => (
-              <Pressable
-                key={tag}
-                style={styles.noteTagChip}
-                onPress={() => removeTag(tag)}
-                hitSlop={6}
-                accessibilityRole="button"
-                accessibilityLabel={`Remove tag ${tag}`}
-              >
-                <Text
-                  style={styles.noteTagChipText}
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                >
-                  #{tag}
-                </Text>
-                <Ionicons name="close" size={13} color={colors.accent} />
-              </Pressable>
-            ))}
-            <TextInput
-              style={styles.noteTagInput}
-              placeholder="Add tag"
-              placeholderTextColor={colors.muted}
-              value={tagInput}
-              onChangeText={setTagInput}
-              onSubmitEditing={addTag}
-              onBlur={addTag}
-              returnKeyType="done"
-              autoCapitalize="none"
-              autoCorrect={false}
-              blurOnSubmit={false}
-            />
-          </View>
           <View style={styles.noteEditorDivider} />
           <TextInput
             style={styles.noteEditorBodyInput}
@@ -402,57 +326,6 @@ export default function NotesScreen() {
             </Pressable>
           ) : null}
         </View>
-      ) : null}
-
-      {allTags.length > 0 ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.noteFilterRow}
-        >
-          <Pressable
-            onPress={() => setActiveTag(null)}
-            accessibilityRole="button"
-            accessibilityState={{ selected: activeTag === null }}
-            style={[
-              styles.noteFilterChip,
-              activeTag === null && styles.noteFilterChipActive,
-            ]}
-          >
-            <Text
-              style={[
-                styles.noteFilterChipText,
-                activeTag === null && styles.noteFilterChipTextActive,
-              ]}
-            >
-              All
-            </Text>
-          </Pressable>
-          {allTags.map((tag) => {
-            const active = activeTag === tag;
-            return (
-              <Pressable
-                key={tag}
-                onPress={() => setActiveTag(active ? null : tag)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                style={[
-                  styles.noteFilterChip,
-                  active && styles.noteFilterChipActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.noteFilterChipText,
-                    active && styles.noteFilterChipTextActive,
-                  ]}
-                >
-                  #{tag}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
       ) : null}
 
       {notes.length === 0 ? (

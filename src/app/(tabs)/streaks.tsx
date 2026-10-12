@@ -30,13 +30,13 @@ import { useAppTheme } from "../../theme";
 const WEEK_LABELS = ["M", "T", "W", "Th", "F", "Sat", "S"];
 const SUNDAY_WEEK_LABELS = ["S", "M", "T", "W", "Th", "F", "Sat"];
 
-const getWeekDays = (offset: number, mondayStart: boolean) => {
+const getWeekDays = (mondayStart: boolean) => {
   const today = new Date();
   const weekdayOffset = mondayStart
     ? (today.getDay() + 6) % 7
     : today.getDay();
   const start = new Date(today);
-  start.setDate(today.getDate() - weekdayOffset + offset * 7);
+  start.setDate(today.getDate() - weekdayOffset);
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
@@ -44,24 +44,12 @@ const getWeekDays = (offset: number, mondayStart: boolean) => {
   });
 };
 
-const formatWeekLabel = (days: Date[]) =>
-  days[0].toLocaleDateString([], {
-    month: "short",
-    day: "numeric",
-  }) +
-  " – " +
-  days[6].toLocaleDateString([], {
-    month: "short",
-    day: "numeric",
-  });
-
 export default function StreaksScreen() {
   const { colors, styles } = useAppTheme();
   const insets = useSafeAreaInsets();
   const bottomPad = insets.bottom + sizes.tabBarHeight + 24;
   const [streaks, setStreaks] = useState<Streak[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [weekStartsMonday, setWeekStartsMonday] = useState(true);
 
@@ -70,8 +58,8 @@ export default function StreaksScreen() {
   const [inputText, setInputText] = useState("");
 
   const weekDays = useMemo(
-    () => getWeekDays(weekOffset, weekStartsMonday),
-    [weekOffset, weekStartsMonday],
+    () => getWeekDays(weekStartsMonday),
+    [weekStartsMonday],
   );
   const weekLabels = weekStartsMonday ? WEEK_LABELS : SUNDAY_WEEK_LABELS;
   const today = todayKey();
@@ -185,7 +173,6 @@ export default function StreaksScreen() {
   const renderStreak = ({ item, index }: { item: Streak; index: number }) => {
     const checkedToday = item.checks.includes(today);
     const itemColor = colorForIndex(index, colors.palette);
-    const viewOnly = weekOffset !== 0;
     return (
       <View style={styles.streakCard}>
         <View style={styles.streakHeader}>
@@ -237,43 +224,36 @@ export default function StreaksScreen() {
           })}
         </View>
 
-        {viewOnly ? (
-          <View style={styles.streakCheckin}>
-            <Ionicons name="eye-outline" size={sizes.icon} color={colors.muted} />
-            <Text style={styles.streakCheckinText}>Past week — tap a day to view</Text>
-          </View>
-        ) : (
-          <TouchableOpacity
+        <TouchableOpacity
+          style={[
+            styles.streakCheckin,
+            checkedToday && styles.streakCheckinActive,
+            checkedToday && { backgroundColor: itemColor, borderColor: itemColor },
+          ]}
+          onPress={() => toggleCheck(item.id)}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityState={{ selected: checkedToday }}
+          accessibilityLabel={
+            checkedToday
+              ? `${item.name} checked in today`
+              : `Check in ${item.name} today`
+          }
+        >
+          <Ionicons
+            name={checkedToday ? "flame" : "flame-outline"}
+            size={sizes.icon}
+            color={checkedToday ? colors.onAccent : itemColor}
+          />
+          <Text
             style={[
-              styles.streakCheckin,
-              checkedToday && styles.streakCheckinActive,
-              checkedToday && { backgroundColor: itemColor, borderColor: itemColor },
+              styles.streakCheckinText,
+              checkedToday && styles.streakCheckinTextActive,
             ]}
-            onPress={() => toggleCheck(item.id)}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityState={{ selected: checkedToday }}
-            accessibilityLabel={
-              checkedToday
-                ? `${item.name} checked in today`
-                : `Check in ${item.name} today`
-            }
           >
-            <Ionicons
-              name={checkedToday ? "flame" : "flame-outline"}
-              size={sizes.icon}
-              color={checkedToday ? colors.onAccent : itemColor}
-            />
-            <Text
-              style={[
-                styles.streakCheckinText,
-                checkedToday && styles.streakCheckinTextActive,
-              ]}
-            >
-              {checkedToday ? "Checked in" : "Check in today"}
-            </Text>
-          </TouchableOpacity>
-        )}
+            {checkedToday ? "Checked in" : "Check in today"}
+          </Text>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -293,41 +273,6 @@ export default function StreaksScreen() {
             <Ionicons name="add" size={28} color={colors.accent} />
           </Pressable>
         </View>
-      </View>
-
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          paddingHorizontal: 20,
-          paddingBottom: 12,
-        }}
-      >
-        <Pressable
-          onPress={() => setWeekOffset((o) => o - 1)}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="Previous week"
-        >
-          <Ionicons name="chevron-back" size={22} color={colors.accent} />
-        </Pressable>
-        <Text style={[styles.sectionHeader, { marginBottom: 0 }]}>
-          {weekOffset === 0 ? "This week" : `Week of ${formatWeekLabel(weekDays)}`}
-        </Text>
-        <Pressable
-          onPress={() => setWeekOffset((o) => Math.min(0, o + 1))}
-          disabled={weekOffset === 0}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="Next week"
-        >
-          <Ionicons
-            name="chevron-forward"
-            size={22}
-            color={weekOffset === 0 ? colors.muted : colors.accent}
-          />
-        </Pressable>
       </View>
 
       {streaks.length === 0 ? (
