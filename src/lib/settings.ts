@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { STORAGE_KEYS } from "./storage";
 
-export const SETTINGS_KEY = "settings";
+export const SETTINGS_KEY = STORAGE_KEYS.settings;
 
 export type SettingsState = {
   haptics: boolean;
@@ -29,9 +30,9 @@ export async function readSettings(): Promise<SettingsState> {
     const raw = await AsyncStorage.getItem(SETTINGS_KEY);
     return raw
       ? { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<SettingsState>) }
-      : DEFAULT_SETTINGS;
+      : { ...DEFAULT_SETTINGS };
   } catch {
-    return DEFAULT_SETTINGS;
+    return { ...DEFAULT_SETTINGS };
   }
 }
 

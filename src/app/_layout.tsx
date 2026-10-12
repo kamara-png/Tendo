@@ -116,7 +116,7 @@ function RootContent() {
             {feature(
               "checkbox",
               "To-dos with active set alarms",
-              "Unfinished tasks carry forward; finished ones tuck away.",
+              "Add tasks, set reminders, and check them off as you go.",
             )}
             <View
               style={{

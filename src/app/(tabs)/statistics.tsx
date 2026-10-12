@@ -3,7 +3,6 @@ import { useFocusEffect } from "expo-router";
 import { useCallback, useState, type ComponentProps } from "react";
 import {
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from "react-native";
@@ -11,8 +10,14 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import Svg, { Circle } from "react-native-svg";
+import Svg, {
+  Circle,
+  Defs,
+  LinearGradient,
+  Stop,
+} from "react-native-svg";
 import { dayKey, shiftDays } from "../../lib/dates";
+import { checkTime, currentStreak, longestStreak } from "../../lib/streaks";
 import { readSettings } from "../../lib/settings";
 import {
   loadHabits,
@@ -41,65 +46,15 @@ function StatRow({ icon, label, value }: StatRowProps) {
   );
 }
 
-const currentStreak = (checks: string[]) => {
-  const set = new Set(checks);
-  let cursor = new Date();
-  if (!set.has(dayKey(cursor))) cursor = shiftDays(cursor, -1);
-  let length = 0;
-  while (set.has(dayKey(cursor))) {
-    length += 1;
-    cursor = shiftDays(cursor, -1);
-  }
-  return length;
-};
-
 const weekStartOffset = (date: Date, mondayStart: boolean) =>
   mondayStart ? (date.getDay() + 6) % 7 : date.getDay();
-
-const checkTime = (key: string) => {
-  const parts = key.split("-").map(Number);
-  if (parts.length !== 3) return null;
-  const d = new Date(parts[0], parts[1] - 1, parts[2]);
-  return Number.isNaN(d.getTime()) ? null : d.getTime();
-};
 
 /** Normalize to local midnight so day/week windows don't depend on the clock. */
 const startOfDay = (date: Date) =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
-/** Longest run of consecutive checked days, all-time. */
-const longestStreak = (checks: string[]) => {
-  const days = Array.from(new Set(checks))
-    .map((key) => checkTime(key))
-    .filter((t): t is number => t !== null)
-    .sort((a, b) => a - b);
-  let best = 0;
-  let run = 0;
-  let prev: number | null = null;
-  for (const day of days) {
-    run = prev !== null && Math.round((day - prev) / 86400000) === 1 ? run + 1 : 1;
-    if (run > best) best = run;
-    prev = day;
-  }
-  return best;
-};
-
 const countWords = (text: string) =>
   text.trim().split(/\s+/).filter(Boolean).length;
-
-type RangeKey = "7d" | "30d" | "all";
-
-const RANGE_LABELS: Record<RangeKey, string> = {
-  "7d": "Last 7 days",
-  "30d": "Last 30 days",
-  all: "All time",
-};
-
-const rangeStartTime = (range: RangeKey, today: Date) => {
-  if (range === "all") return 0;
-  const days = range === "7d" ? 6 : 29;
-  return startOfDay(shiftDays(today, -days)).getTime();
-};
 
 type HeatmapCell = {
   key: string;
@@ -136,72 +91,74 @@ const WEEKDAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const WEEK_LETTERS = ["M", "T", "W", "T", "F", "S", "S"];
 const SUNDAY_LETTERS = ["S", "M", "T", "W", "T", "F", "S"];
 
-const RING_SIZE = 132;
-const RING_STROKE = 12;
+const RING_SIZE = 172;
+const RING_STROKE = 18;
 
-type Segment = { value: number; color: string };
+/** Lighten (positive) or darken (negative) a hex color by a ratio. */
+const shade = (hex: string, amount: number) => {
+  const h = hex.replace("#", "");
+  if (h.length !== 6) return hex;
+  const value = parseInt(h, 16);
+  const channel = (shift: number) => {
+    const v = (value >> shift) & 255;
+    const next = Math.round(amount >= 0 ? v + (255 - v) * amount : v * (1 + amount));
+    return Math.max(0, Math.min(255, next));
+  };
+  return `#${[channel(16), channel(8), channel(0)]
+    .map((v) => v.toString(16).padStart(2, "0"))
+    .join("")}`;
+};
 
-function Donut({
-  size,
-  stroke,
-  segments,
-  label,
-}: {
-  size: number;
-  stroke: number;
-  segments: Segment[];
-  label?: string;
-}) {
-  const { styles } = useAppTheme();
-  const radius = (size - stroke) / 2;
+/** Fitbit-style progress ring: thick rounded arc with a gradient sweep. */
+function ProgressRing({ percent }: { percent: number }) {
+  const { colors, styles } = useAppTheme();
+  const radius = (RING_SIZE - RING_STROKE) / 2;
   const circumference = 2 * Math.PI * radius;
+  const clamped = Math.max(0, Math.min(100, percent));
+  const dash = (clamped / 100) * circumference;
+
   return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <Svg
-        width={size}
-        height={size}
-        style={{ transform: [{ rotate: "-90deg" }] }}
-      >
-        {segments.map((seg, i) => {
-          const dash = circumference * seg.value;
-          const offset =
-            circumference *
-            segments
-              .slice(0, i)
-              .reduce((sum, prev) => sum + prev.value, 0);
-          return (
-            <Circle
-              key={i}
-              cx={size / 2}
-              cy={size / 2}
-              r={radius}
-              stroke={seg.color}
-              strokeWidth={stroke}
-              fill="none"
-              strokeDasharray={`${dash} ${circumference - dash}`}
-              strokeDashoffset={-offset}
-              strokeLinecap="butt"
-            />
-          );
-        })}
+    <View style={{ width: RING_SIZE, height: RING_SIZE }}>
+      <Svg width={RING_SIZE} height={RING_SIZE}>
+        <Defs>
+          <LinearGradient id="fitbitRing" x1="0" y1="0" x2="1" y2="1">
+            <Stop offset="0" stopColor={shade(colors.accent, 0.4)} />
+            <Stop offset="0.5" stopColor={colors.accent} />
+            <Stop offset="1" stopColor={shade(colors.accent, -0.25)} />
+          </LinearGradient>
+        </Defs>
+        <Circle
+          cx={RING_SIZE / 2}
+          cy={RING_SIZE / 2}
+          r={radius}
+          stroke={colors.surfaceAlt}
+          strokeWidth={RING_STROKE}
+          fill="none"
+        />
+        <Circle
+          cx={RING_SIZE / 2}
+          cy={RING_SIZE / 2}
+          r={radius}
+          stroke="url(#fitbitRing)"
+          strokeWidth={RING_STROKE}
+          fill="none"
+          strokeDasharray={`${dash} ${circumference - dash}`}
+          strokeLinecap="round"
+          transform={`rotate(-90 ${RING_SIZE / 2} ${RING_SIZE / 2})`}
+        />
       </Svg>
-      {label ? (
-        <View
-          style={[
-            StyleSheet.absoluteFill,
-            { alignItems: "center", justifyContent: "center" },
-          ]}
-        >
-          <Text style={styles.progressRingValue}>{label}</Text>
-        </View>
-      ) : null}
+      <View
+        style={{
+          position: "absolute",
+          width: RING_SIZE,
+          height: RING_SIZE,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Text style={styles.ringValue}>{clamped}%</Text>
+        <Text style={styles.ringLabel}>completed</Text>
+      </View>
     </View>
   );
 }
@@ -226,14 +183,10 @@ export default function StatisticsScreen() {
   const [totalCheckins, setTotalCheckins] = useState(0);
   const [bestWeekday, setBestWeekday] = useState("—");
   const [topStreaks, setTopStreaks] = useState<TopStreak[]>([]);
-  const range: RangeKey = "all";
   const [heatmap, setHeatmap] = useState<HeatmapCell[][]>([]);
   const [thisWeekCheckins, setThisWeekCheckins] = useState(0);
   const [lastWeekCheckins, setLastWeekCheckins] = useState(0);
   const [topNotes, setTopNotes] = useState<TopNote[]>([]);
-  const [habitsInRange, setHabitsInRange] = useState(0);
-  const [notesInRange, setNotesInRange] = useState(0);
-  const [rangeCheckins, setRangeCheckins] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -285,15 +238,6 @@ export default function StatisticsScreen() {
           const words = notes.reduce((sum, n) => sum + countWords(n.body), 0);
           const chars = notes.reduce((sum, n) => sum + n.body.length, 0);
 
-          const rangeStart = rangeStartTime(range, today);
-          const inRange = (ts: number) => ts >= rangeStart;
-          const rangeHabitCount = habits.filter((h) =>
-            inRange(h.createdAt),
-          ).length;
-          const rangeNoteCount = notes.filter((n) =>
-            inRange(n.updatedAt),
-          ).length;
-
           const nextWeekStart = shiftDays(weekStart, 7);
           const lastWeekStart = shiftDays(weekStart, -7);
           const countBetween = (start: Date, end: Date) => {
@@ -306,10 +250,6 @@ export default function StatisticsScreen() {
             }
             return sum;
           };
-          const rangeCount = countBetween(
-            new Date(rangeStart),
-            startOfDay(shiftDays(today, 1)),
-          );
 
           const HEATMAP_WEEKS = 10;
           const gridStart = shiftDays(weekStart, -7 * (HEATMAP_WEEKS - 1));
@@ -378,12 +318,8 @@ export default function StatisticsScreen() {
           setHeatmap(grid);
           setThisWeekCheckins(countBetween(weekStart, nextWeekStart));
           setLastWeekCheckins(countBetween(lastWeekStart, weekStart));
-          setHabitsInRange(rangeHabitCount);
-          setNotesInRange(rangeNoteCount);
-          setRangeCheckins(rangeCount);
           setTopNotes(
             notes
-              .filter((n) => inRange(n.updatedAt))
               .map((n) => ({
                 id: n.id,
                 title: n.title.trim() || "Untitled note",
@@ -401,17 +337,15 @@ export default function StatisticsScreen() {
       return () => {
         active = false;
       };
-    }, [range]),
+    }, []),
   );
 
   const total = summary.habits;
   const completed = habitsCompleted;
-  const pending = total - completed;
   // Completed todos over all todos; 0 todos → 0%, all completed → 100%.
   const completionRate =
     total === 0 ? 0 : Math.min(100, Math.round((completed / total) * 100));
   const maxBar = Math.max(1, ...weekBars.map((b) => b.count));
-  const rangeLabel = RANGE_LABELS[range];
   const weekDelta = thisWeekCheckins - lastWeekCheckins;
 
   const heatColor = (count: number, future: boolean) => {
@@ -476,69 +410,12 @@ export default function StatisticsScreen() {
             />
             <Text style={styles.statCardTitle}>{"To do's"}</Text>
           </View>
-          <View style={styles.progressRingWrap}>
-            <Donut
-              size={RING_SIZE}
-              stroke={RING_STROKE}
-              label={`${completionRate}%`}
-              segments={[
-                { value: completionRate / 100, color: colors.accent },
-                {
-                  value: 1 - completionRate / 100,
-                  color: colors.surfaceAlt,
-                },
-              ]}
-            />
+          <View style={styles.ringWrap}>
+            <ProgressRing percent={completionRate} />
           </View>
-          <View style={styles.donutLegend}>
-            <View style={styles.donutLegendItem}>
-              <View
-                style={[styles.donutDot, { backgroundColor: colors.accent }]}
-              />
-              <Text style={styles.donutLegendText}>
-                Completed · {completed}
-              </Text>
-            </View>
-            <View style={styles.donutLegendItem}>
-              <View
-                style={[styles.donutDot, { backgroundColor: colors.surfaceAlt }]}
-              />
-              <Text style={styles.donutLegendText}>
-                Pending · {pending}
-              </Text>
-            </View>
-          </View>
-          <StatRow
-            icon="list"
-            label="Total habits"
-            value={String(summary.habits)}
-          />
-          <StatRow
-            icon="add-circle-outline"
-            label={`Created (${rangeLabel.toLowerCase()})`}
-            value={String(habitsInRange)}
-          />
-          <StatRow
-            icon="checkmark-circle"
-            label="Completed"
-            value={String(completed)}
-          />
-          <StatRow
-            icon="ellipse-outline"
-            label="Pending"
-            value={String(pending)}
-          />
-          <View style={styles.statDivider} />
-          <StatRow
-            icon="stats-chart"
-            label="Completion rate"
-            value={`${completionRate}%`}
-          />
-          <View style={styles.statProgressTrack}>
-            <View
-              style={[styles.statProgressFill, { width: `${completionRate}%` }]}
-            />
-          </View>
+          <Text style={styles.ringCaption}>
+            {completed} of {total} completed
+          </Text>
         </View>
 
         <View style={styles.statCard}>
@@ -550,11 +427,6 @@ export default function StatisticsScreen() {
             icon="document-text-outline"
             label="Total notes"
             value={String(summary.notes)}
-          />
-          <StatRow
-            icon="create-outline"
-            label={`Updated (${rangeLabel.toLowerCase()})`}
-            value={String(notesInRange)}
           />
           <StatRow
             icon="text-outline"
@@ -591,11 +463,6 @@ export default function StatisticsScreen() {
             icon="today-outline"
             label="Checked in today"
             value={String(checkedToday)}
-          />
-          <StatRow
-            icon="calendar-outline"
-            label={`Check-ins (${rangeLabel.toLowerCase()})`}
-            value={String(rangeCheckins)}
           />
           <View style={styles.statDivider} />
           <StatRow

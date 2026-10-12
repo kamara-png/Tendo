@@ -1,12 +1,5 @@
 import { StyleSheet } from "react-native";
 
-export type CategoryColors = {
-  blue: string;
-  teal: string;
-  orange: string;
-  red: string;
-};
-
 export type ThemeColors = {
   background: string;
   surface: string;
@@ -17,7 +10,6 @@ export type ThemeColors = {
   accent: string;
   onAccent: string;
   danger: string;
-  categories: CategoryColors;
   palette: string[];
 };
 
@@ -31,12 +23,6 @@ export const darkColors: ThemeColors = {
   accent: "#70b9ee",
   onAccent: "#0f1b24",
   danger: "#fb414a",
-  categories: {
-    blue: "#70b9ee",
-    teal: "#5bd0d6",
-    orange: "#fe9a00",
-    red: "#fb414a",
-  },
   palette: [
     "#8fa9d9",
     "#7bbfa8",
@@ -57,12 +43,6 @@ export const lightColors: ThemeColors = {
   accent: "#2f8fd0",
   onAccent: "#ffffff",
   danger: "#d63840",
-  categories: {
-    blue: "#2f8fd0",
-    teal: "#1f9ca2",
-    orange: "#c47a00",
-    red: "#d63840",
-  },
   palette: [
     "#4f6fae",
     "#2f8578",
@@ -94,11 +74,6 @@ export const ACCENTS: {
   { key: "purple", label: "Purple", dark: "#a99ad9", light: "#6f5fae" },
   { key: "green", label: "Green", dark: "#9ac48f", light: "#4f8a3f" },
 ];
-
-export const accentColor = (key: AccentKey, mode: "dark" | "light") => {
-  const preset = ACCENTS.find((a) => a.key === key) ?? ACCENTS[0];
-  return mode === "dark" ? preset.dark : preset.light;
-};
 
 type Rgb = [number, number, number];
 
@@ -139,7 +114,6 @@ export function buildAccentTheme(
     accent,
     onAccent: mode === "dark" ? "#0f1b24" : "#ffffff",
     danger: base.danger,
-    categories: base.categories,
     palette: base.palette,
   };
 }
@@ -356,97 +330,11 @@ export function createStyles(colors: ThemeColors) {
       fontFamily: fonts.regular,
       fontSize: 13,
     },
-    noteCardTags: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 8,
-      marginTop: 6,
-    },
-    noteCardTag: {
-      backgroundColor: colors.surfaceAlt,
-      borderRadius: 9,
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      minHeight: 30,
-      maxWidth: 150,
-      justifyContent: "center",
-    },
-    noteCardTagText: {
-      color: colors.muted,
-      fontFamily: fonts.semibold,
-      fontSize: 12,
-      fontWeight: "600",
-      flexShrink: 1,
-    },
     noteCardDate: {
       color: colors.muted,
       fontFamily: fonts.regular,
       fontSize: 11,
       marginTop: 6,
-    },
-    noteFilterRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      paddingHorizontal: 20,
-      paddingBottom: 12,
-    },
-    noteFilterChip: {
-      backgroundColor: colors.surfaceAlt,
-      borderRadius: 999,
-      paddingHorizontal: 14,
-      paddingVertical: 6,
-    },
-    noteFilterChipActive: {
-      backgroundColor: colors.accent,
-    },
-    noteFilterChipText: {
-      color: colors.muted,
-      fontFamily: fonts.semibold,
-      fontSize: 13,
-      fontWeight: "600",
-    },
-    noteFilterChipTextActive: {
-      color: colors.onAccent,
-      fontFamily: fonts.bold,
-      fontWeight: "700",
-    },
-    noteTagsWrap: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      alignItems: "center",
-      gap: 8,
-      marginBottom: 12,
-    },
-    noteTagChip: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      backgroundColor: colors.surfaceAlt,
-      borderRadius: 9,
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      minHeight: 32,
-      maxWidth: 160,
-    },
-    noteTagChipText: {
-      color: colors.accent,
-      fontFamily: fonts.semibold,
-      fontSize: 12,
-      fontWeight: "600",
-      flexShrink: 1,
-    },
-    noteTagInput: {
-      color: colors.text,
-      fontFamily: fonts.regular,
-      fontSize: 14,
-      flexGrow: 1,
-      flexShrink: 1,
-      minWidth: 100,
-      paddingVertical: 6,
-      paddingHorizontal: 10,
-      backgroundColor: colors.background,
-      borderRadius: 9,
     },
     noteEditorContainer: {
       flex: 1,
@@ -592,56 +480,6 @@ export function createStyles(colors: ThemeColors) {
       padding: 16,
       marginBottom: 12,
     },
-    rangeRow: {
-      flexDirection: "row",
-      backgroundColor: colors.surfaceAlt,
-      borderRadius: 10,
-      padding: 3,
-      gap: 3,
-      marginBottom: 18,
-    },
-    rangeChip: {
-      flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingVertical: 8,
-      borderRadius: 8,
-    },
-    rangeChipActive: {
-      backgroundColor: colors.surface,
-    },
-    rangeChipText: {
-      color: colors.muted,
-      fontFamily: fonts.semibold,
-      fontSize: 13,
-      fontWeight: "600",
-    },
-    rangeChipTextActive: {
-      color: colors.text,
-      fontFamily: fonts.bold,
-      fontWeight: "700",
-    },
-    donutLegend: {
-      flexDirection: "row",
-      justifyContent: "center",
-      gap: 18,
-      marginBottom: 12,
-    },
-    donutLegendItem: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-    },
-    donutDot: {
-      width: 10,
-      height: 10,
-      borderRadius: 5,
-    },
-    donutLegendText: {
-      color: colors.muted,
-      fontFamily: fonts.regular,
-      fontSize: 12,
-    },
     heatmapGrid: {
       flexDirection: "row",
       gap: 4,
@@ -711,27 +549,29 @@ export function createStyles(colors: ThemeColors) {
       borderBottomWidth: StyleSheet.hairlineWidth,
       marginVertical: 6,
     },
-    statProgressTrack: {
-      height: 6,
-      borderRadius: 3,
-      backgroundColor: colors.surfaceAlt,
-      overflow: "hidden",
+    ringWrap: {
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 10,
+    },
+    ringValue: {
+      color: colors.text,
+      fontFamily: fonts.bold,
+      fontSize: 36,
+      fontWeight: "900",
+    },
+    ringLabel: {
+      color: colors.muted,
+      fontFamily: fonts.semibold,
+      fontSize: 13,
       marginTop: 2,
     },
-    statProgressFill: {
-      height: "100%",
-      borderRadius: 3,
-      backgroundColor: colors.accent,
-    },
-    progressRingWrap: {
-      alignItems: "center",
-      marginBottom: 14,
-    },
-    progressRingValue: {
-      color: colors.accent,
-      fontFamily: fonts.bold,
-      fontSize: 24,
-      fontWeight: "900",
+    ringCaption: {
+      color: colors.muted,
+      fontFamily: fonts.regular,
+      fontSize: 13,
+      textAlign: "center",
+      marginTop: 14,
     },
     reminderCurrent: {
       color: colors.muted,

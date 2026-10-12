@@ -42,7 +42,12 @@ import {
   readSettings,
   type SettingsState,
 } from "../../lib/settings";
-import { loadHabits, saveHabits, STORAGE_KEYS } from "../../lib/storage";
+import {
+  loadHabits,
+  notifyStorageChanged,
+  saveHabits,
+  STORAGE_KEYS,
+} from "../../lib/storage";
 import { ACCENTS, sizes, type AccentKey } from "../../styles/styles";
 import { useAppTheme } from "../../theme";
 
@@ -52,14 +57,7 @@ const DATA_KEYS: Record<string, string> = {
   streaks: STORAGE_KEYS.streaks,
 };
 
-const BACKUP_KEYS = [
-  "habits",
-  "notes",
-  "streaks",
-  "settings",
-  "theme",
-  "accent",
-];
+const BACKUP_KEYS = Object.values(STORAGE_KEYS);
 
 const APP_VERSION = Constants.expoConfig?.version ?? "1.0.0";
 
@@ -126,7 +124,7 @@ export default function SettingsScreen() {
     setPermissionGranted(await getReminderPermissionStatus());
   }, []);
 
-  const loadSettingsSync = async () => {
+  const reloadSettings = async () => {
     setSettings(await readSettings());
   };
 
@@ -152,14 +150,7 @@ export default function SettingsScreen() {
     key: K,
     value: SettingsState[K],
   ) => {
-    setSettings((prev) => {
-      const next = { ...prev, [key]: value };
-      AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(next)).catch((error) =>
-        console.error("Failed to save settings", error),
-      );
-      return next;
-    });
-    setNote(null);
+    void persistSettings({ ...settings, [key]: value });
   };
 
   const persistSettings = async (next: SettingsState) => {
@@ -286,6 +277,7 @@ export default function SettingsScreen() {
       }
       const remaining = stored.filter((h) => h.completedDate === null);
       await saveHabits(remaining);
+      notifyStorageChanged();
       setNote(`Cleared ${stored.length - remaining.length} completed task(s).`);
     } catch (error) {
       console.error("Failed to clear completed tasks", error);
@@ -297,7 +289,16 @@ export default function SettingsScreen() {
     if (!confirmTarget) return;
     const key = DATA_KEYS[confirmTarget];
     try {
+      // Clearing tasks must also cancel their scheduled alarms, or orphaned
+      // notifications fire later with nothing to open.
+      if (confirmTarget === "tasks") {
+        const stored = await loadHabits();
+        for (const h of stored) {
+          await cancelReminderAsync(h.notificationId);
+        }
+      }
       await AsyncStorage.removeItem(key);
+      notifyStorageChanged();
       setNote(`All ${confirmTarget} cleared.`);
     } catch (error) {
       console.error("Failed to clear data", error);
@@ -361,6 +362,7 @@ export default function SettingsScreen() {
       }
 
       await AsyncStorage.multiSet(entries);
+      notifyStorageChanged();
 
       const themeValue = source.theme;
       if (themeValue === "dark" || themeValue === "light") {
@@ -376,7 +378,7 @@ export default function SettingsScreen() {
       setImportText("");
       setImportError(null);
       setNote("Backup imported.");
-      await loadSettingsSync();
+      await reloadSettings();
     } catch (error) {
       console.error("Failed to import backup", error);
       setImportError("That doesn't look like valid backup JSON.");

@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useColorScheme } from "react-native";
+import { STORAGE_KEYS } from "./lib/storage";
 import {
   buildAccentTheme,
   createStyles,
@@ -16,8 +17,8 @@ import {
   type ThemeColors,
 } from "./styles/styles";
 
-const THEME_KEY = "theme";
-const ACCENT_KEY = "accent";
+const THEME_KEY = STORAGE_KEYS.theme;
+const ACCENT_KEY = STORAGE_KEYS.accent;
 
 export type ThemeMode = "dark" | "light";
 
@@ -27,7 +28,6 @@ type ThemeValue = {
   colors: ThemeColors;
   styles: AppStyles;
   setMode: (mode: ThemeMode) => void;
-  toggleTheme: () => void;
   setAccent: (key: AccentKey) => void;
 };
 
@@ -73,7 +73,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       colors,
       styles: createStyles(colors),
       setMode: apply,
-      toggleTheme: () => apply(mode === "dark" ? "light" : "dark"),
       setAccent: applyAccent,
     };
   }, [accentKey, mode]);

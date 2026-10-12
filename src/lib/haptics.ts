@@ -49,12 +49,3 @@ export function successFeedback(): Promise<void> {
       : Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
   );
 }
-
-/** Feedback for a failed or destructive action. */
-export function errorFeedback(): Promise<void> {
-  return whenEnabled(() =>
-    Platform.OS === "android"
-      ? Haptics.performAndroidHapticsAsync(Haptics.AndroidHaptics.Reject)
-      : Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error),
-  );
-}

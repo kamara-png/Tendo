@@ -23,6 +23,7 @@ import { readSettings } from "../../lib/settings";
 import {
   loadHabits,
   saveHabits,
+  subscribeStorageChanges,
   type Habit,
 } from "../../lib/storage";
 import {
@@ -202,6 +203,21 @@ export default function Index() {
     if (!loaded) return;
     void saveHabits(habits);
   }, [habits, loaded]);
+
+  // Reload when Settings clears or imports data so stale tasks can't resurrect.
+  useEffect(
+    () =>
+      subscribeStorageChanges(() => {
+        void (async () => {
+          try {
+            setHabits(await loadHabits({ throwOnError: true }));
+          } catch (error) {
+            console.error("Failed to reload habits", error);
+          }
+        })();
+      }),
+    [],
+  );
 
   // In-app fallback: fires while the app is open when system notifications
   // are unavailable (Expo Go / web) or the app is in the foreground.

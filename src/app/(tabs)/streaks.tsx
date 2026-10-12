@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useMemo, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -23,6 +24,7 @@ import { readSettings } from "../../lib/settings";
 import {
   loadStreaks,
   saveStreaks,
+  subscribeStorageChanges,
   type Streak,
 } from "../../lib/storage";
 import { useAppTheme } from "../../theme";
@@ -64,17 +66,20 @@ export default function StreaksScreen() {
   const weekLabels = weekStartsMonday ? WEEK_LABELS : SUNDAY_WEEK_LABELS;
   const today = todayKey();
 
-  useEffect(() => {
-    let active = true;
-    const loadSettingsFromStorage = async () => {
-      const settings = await readSettings();
-      if (active) setWeekStartsMonday(settings.weekStartsMonday);
-    };
-    void loadSettingsFromStorage();
-    return () => {
-      active = false;
-    };
-  }, []);
+  // Re-read the week-start preference whenever the tab gains focus so a change
+  // in Settings is reflected without restarting the app.
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      void (async () => {
+        const settings = await readSettings();
+        if (active) setWeekStartsMonday(settings.weekStartsMonday);
+      })();
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
 
   useEffect(() => {
     let active = true;
@@ -104,6 +109,21 @@ export default function StreaksScreen() {
     if (!loaded) return;
     void saveStreaks(streaks);
   }, [streaks, loaded]);
+
+  // Reload when Settings clears or imports data so stale streaks can't resurrect.
+  useEffect(
+    () =>
+      subscribeStorageChanges(() => {
+        void (async () => {
+          try {
+            setStreaks(await loadStreaks({ throwOnError: true }));
+          } catch (error) {
+            console.error("Failed to reload streaks", error);
+          }
+        })();
+      }),
+    [],
+  );
 
   const openAddModal = () => {
     setEditingId(null);

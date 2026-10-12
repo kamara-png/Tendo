@@ -20,6 +20,7 @@ import { readSettings } from "../../lib/settings";
 import {
   loadNotes,
   saveNotes,
+  subscribeStorageChanges,
   type Note,
 } from "../../lib/storage";
 import { sizes } from "../../styles/styles";
@@ -75,6 +76,21 @@ export default function NotesScreen() {
     void saveNotes(notes);
   }, [notes, loaded]);
 
+  // Reload when Settings clears or imports data so stale notes can't resurrect.
+  useEffect(
+    () =>
+      subscribeStorageChanges(() => {
+        void (async () => {
+          try {
+            setNotes(await loadNotes({ throwOnError: true }));
+          } catch (error) {
+            console.error("Failed to reload notes", error);
+          }
+        })();
+      }),
+    [],
+  );
+
   const selected = notes.find((n) => n.id === selectedId) ?? null;
 
   const visibleNotes = useMemo(() => {
@@ -108,7 +124,6 @@ export default function NotesScreen() {
       body: "",
       updatedAt: Date.now(),
       pinned: false,
-      tags: [],
     };
     setNotes((prev) => [note, ...prev]);
     selectNote(note.id);

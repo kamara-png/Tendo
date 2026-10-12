@@ -13,9 +13,7 @@ export const STORAGE_KEYS = {
 export type Habit = {
   id: string;
   name: string;
-  /** Date (YYYY-MM-DD) the task was last completed. Once set, the task is
-   * hidden from the active list (carry-forward) and only resurfaces in the
-   * "Done today" section on that same day. */
+  /** Date (YYYY-MM-DD) the task was completed, or null while pending. */
   completedDate: string | null;
   createdAt: number;
   reminderAt: number | null;
@@ -29,8 +27,6 @@ export type Note = {
   updatedAt: number;
   /** Pinned notes float to the top of the list. */
   pinned: boolean;
-  /** Lowercase tags used for filtering. */
-  tags: string[];
 };
 
 export type Streak = {
@@ -39,57 +35,61 @@ export type Streak = {
   checks: string[];
 };
 
-type LegacyHabit = {
-  id: string;
-  name: string;
-  completed?: boolean;
-  createdAt?: number;
-  reminderAt?: number | null;
-  notificationId?: string | null;
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)
+    : null;
+
+const asNumber = (value: unknown, fallback: number) =>
+  typeof value === "number" && Number.isFinite(value) ? value : fallback;
+
+const asStringArray = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+
+/**
+ * Validate and normalise a stored/imported habit. Returns null for entries that
+ * are too malformed to be usable (missing id/name), so a bad backup can never
+ * crash a list. `completedDate` is preserved; the legacy boolean is only a
+ * fallback for very old data.
+ */
+const migrateHabit = (raw: unknown): Habit | null => {
+  const r = asRecord(raw);
+  if (!r || typeof r.id !== "string" || typeof r.name !== "string") return null;
+  return {
+    id: r.id,
+    name: r.name,
+    completedDate:
+      typeof r.completedDate === "string"
+        ? r.completedDate
+        : r.completed === true
+          ? todayKey()
+          : null,
+    createdAt: asNumber(r.createdAt, Date.now()),
+    reminderAt: typeof r.reminderAt === "number" ? r.reminderAt : null,
+    notificationId:
+      typeof r.notificationId === "string" ? r.notificationId : null,
+  };
 };
 
-type LegacyNote = {
-  id: string;
-  title?: string;
-  body?: string;
-  updatedAt?: number;
-  pinned?: boolean;
-  tags?: string[];
+const migrateNote = (raw: unknown): Note | null => {
+  const r = asRecord(raw);
+  if (!r || typeof r.id !== "string") return null;
+  return {
+    id: r.id,
+    title: typeof r.title === "string" ? r.title : "",
+    body: typeof r.body === "string" ? r.body : "",
+    updatedAt: asNumber(r.updatedAt, Date.now()),
+    pinned: r.pinned === true,
+  };
 };
 
-type LegacyStreak = {
-  id: string;
-  name: string;
-  checks?: string[];
+const migrateStreak = (raw: unknown): Streak | null => {
+  const r = asRecord(raw);
+  if (!r || typeof r.id !== "string" || typeof r.name !== "string") return null;
+  return { id: r.id, name: r.name, checks: asStringArray(r.checks) };
 };
-
-const migrateHabit = (raw: LegacyHabit): Habit => ({
-  id: raw.id,
-  name: raw.name,
-  completedDate: raw.completed ? todayKey() : null,
-  createdAt: raw.createdAt ?? Date.now(),
-  reminderAt: raw.reminderAt ?? null,
-  notificationId: raw.notificationId ?? null,
-});
-
-const migrateNote = (raw: LegacyNote): Note => ({
-  id: raw.id,
-  title: raw.title ?? "",
-  body: raw.body ?? "",
-  updatedAt: raw.updatedAt ?? Date.now(),
-  pinned: raw.pinned ?? false,
-  tags: Array.isArray(raw.tags)
-    ? raw.tags.filter((t): t is string => typeof t === "string")
-    : [],
-});
-
-const migrateStreak = (raw: LegacyStreak): Streak => ({
-  id: raw.id,
-  name: raw.name,
-  checks: Array.isArray(raw.checks) ? raw.checks : [],
-});
-
-const isArray = (value: unknown): value is unknown[] => Array.isArray(value);
 
 export async function loadHabits(options?: {
   throwOnError?: boolean;
@@ -98,8 +98,10 @@ export async function loadHabits(options?: {
     const stored = await AsyncStorage.getItem(STORAGE_KEYS.habits);
     if (!stored) return [];
     const parsed = JSON.parse(stored) as unknown;
-    if (!isArray(parsed)) return [];
-    return parsed.map((raw) => migrateHabit(raw as LegacyHabit));
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map(migrateHabit)
+      .filter((habit): habit is Habit => habit !== null);
   } catch (error) {
     console.error("Failed to load habits", error);
     if (options?.throwOnError) throw error;
@@ -122,8 +124,10 @@ export async function loadNotes(options?: {
     const stored = await AsyncStorage.getItem(STORAGE_KEYS.notes);
     if (!stored) return [];
     const parsed = JSON.parse(stored) as unknown;
-    if (!isArray(parsed)) return [];
-    return parsed.map((raw) => migrateNote(raw as LegacyNote));
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map(migrateNote)
+      .filter((note): note is Note => note !== null);
   } catch (error) {
     console.error("Failed to load notes", error);
     if (options?.throwOnError) throw error;
@@ -146,8 +150,10 @@ export async function loadStreaks(options?: {
     const stored = await AsyncStorage.getItem(STORAGE_KEYS.streaks);
     if (!stored) return [];
     const parsed = JSON.parse(stored) as unknown;
-    if (!isArray(parsed)) return [];
-    return parsed.map((raw) => migrateStreak(raw as LegacyStreak));
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map(migrateStreak)
+      .filter((streak): streak is Streak => streak !== null);
   } catch (error) {
     console.error("Failed to load streaks", error);
     if (options?.throwOnError) throw error;
@@ -161,4 +167,24 @@ export async function saveStreaks(streaks: Streak[]): Promise<void> {
   } catch (error) {
     console.error("Failed to save streaks", error);
   }
+}
+
+type StorageListener = () => void;
+
+const storageListeners = new Set<StorageListener>();
+
+/**
+ * Subscribe to out-of-band data changes (e.g. Settings clearing or importing
+ * data) so a mounted screen can reload instead of re-saving stale state.
+ */
+export function subscribeStorageChanges(listener: StorageListener): () => void {
+  storageListeners.add(listener);
+  return () => {
+    storageListeners.delete(listener);
+  };
+}
+
+/** Notify listeners that stored data changed outside their own state updates. */
+export function notifyStorageChanged(): void {
+  for (const listener of storageListeners) listener();
 }
