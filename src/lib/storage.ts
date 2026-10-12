@@ -91,7 +91,9 @@ const migrateStreak = (raw: LegacyStreak): Streak => ({
 
 const isArray = (value: unknown): value is unknown[] => Array.isArray(value);
 
-export async function loadHabits(): Promise<Habit[]> {
+export async function loadHabits(options?: {
+  throwOnError?: boolean;
+}): Promise<Habit[]> {
   try {
     const stored = await AsyncStorage.getItem(STORAGE_KEYS.habits);
     if (!stored) return [];
@@ -100,6 +102,7 @@ export async function loadHabits(): Promise<Habit[]> {
     return parsed.map((raw) => migrateHabit(raw as LegacyHabit));
   } catch (error) {
     console.error("Failed to load habits", error);
+    if (options?.throwOnError) throw error;
     return [];
   }
 }
@@ -112,7 +115,9 @@ export async function saveHabits(habits: Habit[]): Promise<void> {
   }
 }
 
-export async function loadNotes(): Promise<Note[]> {
+export async function loadNotes(options?: {
+  throwOnError?: boolean;
+}): Promise<Note[]> {
   try {
     const stored = await AsyncStorage.getItem(STORAGE_KEYS.notes);
     if (!stored) return [];
@@ -121,6 +126,7 @@ export async function loadNotes(): Promise<Note[]> {
     return parsed.map((raw) => migrateNote(raw as LegacyNote));
   } catch (error) {
     console.error("Failed to load notes", error);
+    if (options?.throwOnError) throw error;
     return [];
   }
 }
@@ -133,7 +139,9 @@ export async function saveNotes(notes: Note[]): Promise<void> {
   }
 }
 
-export async function loadStreaks(): Promise<Streak[]> {
+export async function loadStreaks(options?: {
+  throwOnError?: boolean;
+}): Promise<Streak[]> {
   try {
     const stored = await AsyncStorage.getItem(STORAGE_KEYS.streaks);
     if (!stored) return [];
@@ -142,6 +150,7 @@ export async function loadStreaks(): Promise<Streak[]> {
     return parsed.map((raw) => migrateStreak(raw as LegacyStreak));
   } catch (error) {
     console.error("Failed to load streaks", error);
+    if (options?.throwOnError) throw error;
     return [];
   }
 }

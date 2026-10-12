@@ -60,6 +60,7 @@ export default function StreaksScreen() {
   const insets = useSafeAreaInsets();
   const bottomPad = insets.bottom + sizes.tabBarHeight + 24;
   const [streaks, setStreaks] = useState<Streak[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [weekStartsMonday, setWeekStartsMonday] = useState(true);
@@ -90,8 +91,20 @@ export default function StreaksScreen() {
   useEffect(() => {
     let active = true;
     const loadFromStorage = async () => {
-      const stored = await loadStreaks();
-      if (active) setStreaks(stored);
+      let stored: Streak[] = [];
+      try {
+        stored = await loadStreaks({ throwOnError: true });
+      } catch (error) {
+        console.error("Failed to load streaks", error);
+        return;
+      }
+      if (!active) return;
+      setStreaks((prev) => {
+        if (prev.length === 0) return stored;
+        const ids = new Set(prev.map((s) => s.id));
+        return [...prev, ...stored.filter((s) => !ids.has(s.id))];
+      });
+      setLoaded(true);
     };
     void loadFromStorage();
     return () => {
@@ -100,8 +113,9 @@ export default function StreaksScreen() {
   }, []);
 
   useEffect(() => {
+    if (!loaded) return;
     void saveStreaks(streaks);
-  }, [streaks]);
+  }, [streaks, loaded]);
 
   const openAddModal = () => {
     setEditingId(null);

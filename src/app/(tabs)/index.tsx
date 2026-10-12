@@ -76,8 +76,10 @@ export default function Index() {
   const insets = useSafeAreaInsets();
   const bottomPad = insets.bottom + sizes.tabBarHeight + 24;
   const [habits, setHabits] = useState<Habit[]>([]);
+  const [loaded, setLoaded] = useState(false);
 
   const habitsRef = useRef<Habit[]>([]);
+  const didLoadRef = useRef(false);
   useEffect(() => {
     habitsRef.current = habits;
   }, [habits]);
@@ -134,9 +136,22 @@ export default function Index() {
   }, [snoozeHabit, dismissReminder]);
 
   useEffect(() => {
+    if (didLoadRef.current) return;
+    didLoadRef.current = true;
     const loadHabitsFromStorage = async () => {
-      const mapped = await loadHabits();
-      setHabits(mapped);
+      let mapped: Habit[] = [];
+      try {
+        mapped = await loadHabits({ throwOnError: true });
+      } catch (error) {
+        console.error("Failed to load habits", error);
+        return;
+      }
+      setHabits((prev) => {
+        if (prev.length === 0) return mapped;
+        const ids = new Set(prev.map((h) => h.id));
+        return [...prev, ...mapped.filter((h) => !ids.has(h.id))];
+      });
+      setLoaded(true);
 
       for (const h of mapped) {
         if (
@@ -184,8 +199,9 @@ export default function Index() {
   }, [snoozeHabit, dismissReminder]);
 
   useEffect(() => {
+    if (!loaded) return;
     void saveHabits(habits);
-  }, [habits]);
+  }, [habits, loaded]);
 
   // In-app fallback: fires while the app is open when system notifications
   // are unavailable (Expo Go / web) or the app is in the foreground.

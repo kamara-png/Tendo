@@ -42,6 +42,7 @@ export default function NotesScreen() {
   const insets = useSafeAreaInsets();
   const bottomPad = insets.bottom + sizes.tabBarHeight + 24;
   const [notes, setNotes] = useState<Note[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -51,8 +52,20 @@ export default function NotesScreen() {
   useEffect(() => {
     let active = true;
     const loadNotesFromStorage = async () => {
-      const stored = await loadNotes();
-      if (active) setNotes(stored);
+      let stored: Note[] = [];
+      try {
+        stored = await loadNotes({ throwOnError: true });
+      } catch (error) {
+        console.error("Failed to load notes", error);
+        return;
+      }
+      if (!active) return;
+      setNotes((prev) => {
+        if (prev.length === 0) return stored;
+        const ids = new Set(prev.map((n) => n.id));
+        return [...prev, ...stored.filter((n) => !ids.has(n.id))];
+      });
+      setLoaded(true);
     };
     void loadNotesFromStorage();
     return () => {
@@ -61,8 +74,9 @@ export default function NotesScreen() {
   }, []);
 
   useEffect(() => {
+    if (!loaded) return;
     void saveNotes(notes);
-  }, [notes]);
+  }, [notes, loaded]);
 
   const selected = notes.find((n) => n.id === selectedId) ?? null;
 
