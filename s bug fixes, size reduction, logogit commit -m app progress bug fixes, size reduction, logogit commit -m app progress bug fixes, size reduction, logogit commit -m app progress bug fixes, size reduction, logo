@@ -1,0 +1,11 @@
+[33me1907a5[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{Mon Oct 12 09:51:40 2026}: commit: app progress: bug fixes, size reduction, logo
+[33m7bdb95b[m[33m ([m[1;32mold-history[m[33m)[m HEAD@{Mon Oct 12 09:46:33 2026}: reset: moving to origin/main
+[33m1a17182[m HEAD@{Mon Oct 12 09:17:55 2026}: commit: bug fixes
+[33m7278699[m HEAD@{Sun Oct 11 11:47:28 2026}: commit: size reduction 2
+[33m5fc1d5a[m HEAD@{Sun Oct 11 11:47:20 2026}: commit: size reduction
+[33m2da1758[m HEAD@{Sun Oct 11 10:49:03 2026}: commit: final work for the app dev build
+[33m359ff86[m HEAD@{Sat Oct 10 12:43:59 2026}: commit: added app logo and hover pop up screen
+[33m7bdb95b[m[33m ([m[1;32mold-history[m[33m)[m HEAD@{Tue Sep 15 18:34:51 2026}: commit: begin of notes page
+[33m2e88c43[m HEAD@{Tue Sep 15 18:13:32 2026}: commit: rough design of todos page
+[33m7360e10[m HEAD@{Sun Sep 13 01:15:56 2026}: commit: tendo start
+[33mba3d5ca[m HEAD@{Fri Sep 11 18:29:17 2026}: commit (initial): Initial commit
