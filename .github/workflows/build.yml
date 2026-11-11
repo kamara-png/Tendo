@@ -1,0 +1,234 @@
+name: Build & Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_web:
+        description: Also build the web bundle
+        type: boolean
+        default: true
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: CI checks
+    uses: ./.github/workflows/ci.yml
+
+  android:
+    name: Android build (APK)
+    needs: checks
+    runs-on: ubuntu-latest
+    # A cold build (no Gradle cache) can exceed an hour on CI; the cache is only
+    # saved on success, so this must be high enough for the first run to finish.
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Require release notes for this tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: node scripts/release-notes.mjs "$GITHUB_REF_NAME" > /dev/null
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Install dependencies
+        run: npm ci
+      - name: Verify app.json version matches tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          node - <<'EOF'
+          const fs = require('fs');
+          const tag = process.env.GITHUB_REF_NAME;
+          const expected = tag.replace(/^v/, '');
+          const config = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+          const actual = config.expo.version;
+          if (actual !== expected) {
+            console.error(`app.json expo.version is "${actual}" but the tag is "${tag}".`);
+            console.error('Bump the version before tagging so the runtime version does not drift.');
+            process.exit(1);
+          }
+          console.log(`app.json version matches tag: ${actual}`);
+          EOF
+      - name: Set app version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          node - <<'EOF'
+          const fs = require('fs');
+          const version = process.env.GITHUB_REF_NAME.replace(/^v/, '');
+          const app = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+          const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
+          if (!match) {
+            console.error(`Tag version "${version}" is not major.minor.patch.`);
+            process.exit(1);
+          }
+          const [, major, minor, patch] = match.map(Number);
+          app.expo.version = version;
+          app.expo.android = {
+            ...app.expo.android,
+            versionCode: major * 10000 + minor * 100 + patch,
+          };
+          fs.writeFileSync('app.json', JSON.stringify(app, null, 2) + '\n');
+          console.log(
+            `Set app version to ${version} (versionCode ${app.expo.android.versionCode})`,
+          );
+          EOF
+      - name: Generate native project
+        run: npx expo prebuild --platform android --clean
+      - name: Point Gradle at the Android SDK
+        run: echo "sdk.dir=${ANDROID_HOME:-${ANDROID_SDK_ROOT}}" > android/local.properties
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+      - name: Build release APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+      - name: Verify APK signature and size
+        run: |
+          set -euo pipefail
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)
+          echo "Using $BUILD_TOOLS"
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee apksigner.txt
+          grep -q "Verified using v2 scheme (APK Signature Scheme v2): true" apksigner.txt
+          grep -q "CN=Tendo" apksigner.txt
+          SIZE=$(stat -c%s "$APK")
+          echo "APK size: $SIZE bytes ($((SIZE / 1024 / 1024)) MiB)"
+          if [ "$SIZE" -gt 52428800 ]; then
+            echo "::error::APK is $SIZE bytes, over the 50 MiB limit"
+            exit 1
+          fi
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+  web:
+    name: Web bundle
+    needs: checks
+    if: ${{ inputs.build_web }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Export web bundle
+        run: npx expo export --platform web
+      - name: Upload web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: dist
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: android
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Download Android artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: android-release
+          path: artifacts
+      - name: Prepare release asset
+        run: |
+          set -euo pipefail
+          APK=$(find artifacts -type f -name '*.apk' | head -n 1)
+          if [ -z "$APK" ]; then
+            echo "No APK found in artifacts" >&2
+            exit 1
+          fi
+          cp "$APK" "Tendo-${GITHUB_REF_NAME}.apk"
+          ls -lh "Tendo-${GITHUB_REF_NAME}.apk"
+          sha256sum "Tendo-${GITHUB_REF_NAME}.apk" | tee apk.sha256
+      - name: Prepare release notes
+        run: |
+          set -euo pipefail
+          SIZE=$(stat -c%s "Tendo-${GITHUB_REF_NAME}.apk")
+          HASH=$(awk '{print $1}' apk.sha256)
+          {
+            # Curated notes from src/constants/changelog.json, published verbatim.
+            # Fails the release if they are missing, so the in-app "What's new"
+            # and the GitHub Release can never disagree.
+            node scripts/release-notes.mjs "$GITHUB_REF_NAME"
+            echo
+            echo "## Install on Android"
+            echo
+            echo "Tendo 1.1.0 and later offer new releases inside the app (Settings → App updates). Older versions need the manual install below, once."
+            echo
+            echo "1. Download the \`.apk\` file below **on your phone** ($((SIZE / 1024 / 1024)) MiB — Wi-Fi recommended)."
+            echo "2. Tap it in your downloads and allow installing from unknown sources when prompted."
+            echo "3. Open **Tendo** from your app drawer."
+            echo
+            echo "Releases share a permanent signing key, so new versions install over the top and keep your data. If an older build is already installed, uninstall it once before installing this one."
+            echo
+            echo "SHA-256: \`$HASH\`"
+          } > release-notes.md
+          cat release-notes.md
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          ASSET: Tendo-${{ github.ref_name }}.apk
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ASSET" --clobber
+            gh release edit "$TAG" --notes-file release-notes.md
+          else
+            gh release create "$TAG" "$ASSET" \
+              --title "Tendo $TAG" \
+              --verify-tag \
+              --notes-file release-notes.md
+          fi
+      - name: Verify published asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          ASSET: Tendo-${{ github.ref_name }}.apk
+        run: |
+          set -euo pipefail
+          mkdir -p verify
+          gh release download "$TAG" --pattern "$ASSET" --dir verify --clobber
+          (cd verify && sha256sum -c ../apk.sha256)
+          SIZE=$(stat -c%s "verify/$ASSET")
+          echo "Published asset: $SIZE bytes"
+          if [ "$SIZE" -gt 52428800 ]; then
+            echo "::error::Published APK is $SIZE bytes, over the 50 MiB limit"
+            exit 1
+          fi

@@ -1,6 +1,12 @@
-# Welcome to your Expo app 👋
+# Welcome to Tendo
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Tendo is a calm daily dashboard for todos, notes and streaks, built with Expo.
+
+## Releases
+
+Download the latest APK from the [**Releases** page](https://github.com/kamara-png/Tendo/releases). Every release ships a signed `Tendo-vX.Y.Z.apk` with its release notes; once version 1.1.0 is installed, newer versions can be offered **in-app** from *Settings → App updates*.
+
+The release process is documented in [RELEASING.md](./RELEASING.md).
 
 ## Get started
 

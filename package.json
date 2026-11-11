@@ -51,6 +51,9 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "test": "jest",
+    "test:scripts": "node --test \"scripts/**/*.test.mjs\"",
+    "release": "node scripts/release.mjs",
+    "make-keystore": "node scripts/make-keystore.mjs",
     "make-alarm": "node ./scripts/make-alarm.js"
   },
   "private": true

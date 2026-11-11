@@ -1,0 +1,22 @@
+[
+  {
+    "version": "1.1.0",
+    "publishedAt": "2026-11-11T00:00:00Z",
+    "added": [
+      "In-app updates: Tendo checks GitHub releases daily and offers new APKs from Settings → App updates",
+      "Check for updates button with download progress and one-tap install",
+      "What's new dialog showing the notes for the newest release",
+      "Material theme style: switch between Classic and Material Design 3 looks in Settings → Theme",
+      "Streaks redesign: current-streak badges, weekly progress bar, summary strip and a long-press menu",
+      "More stats: perfect days, 30-day averages, check-in streaks, pinned notes and weekly note activity",
+      "Releases page: every version and its notes live on the GitHub Releases tab"
+    ],
+    "changed": [
+      "Notes editor saves with a clear Save button in the header",
+      "Streak cards show day numbers under each weekday dot"
+    ],
+    "fixed": [
+      "Streak check-ins no longer lose their haptic when unchecked"
+    ]
+  }
+]

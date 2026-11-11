@@ -1,4 +1,5 @@
 const withArchitectures = require("./plugins/with-architectures");
+const withReleaseSigning = require("./plugins/withReleaseSigning");
 
 const ALL_ABIS = "arm64-v8a,armeabi-v7a,x86,x86_64";
 const APP_BUNDLE_ABIS = "arm64-v8a,armeabi-v7a";
@@ -19,5 +20,6 @@ module.exports = ({ config }) => ({
       withArchitectures,
       { architectures: architecturesForProfile(process.env.EAS_BUILD_PROFILE) },
     ],
+    withReleaseSigning,
   ],
 });
