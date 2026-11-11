@@ -15,20 +15,24 @@ import {
   type AccentKey,
   type AppStyles,
   type ThemeColors,
+  type ThemeStyle,
 } from "./styles/styles";
 
 const THEME_KEY = STORAGE_KEYS.theme;
 const ACCENT_KEY = STORAGE_KEYS.accent;
+const STYLE_KEY = STORAGE_KEYS.themeStyle;
 
 export type ThemeMode = "dark" | "light";
 
 type ThemeValue = {
   mode: ThemeMode;
   accentKey: AccentKey;
+  style: ThemeStyle;
   colors: ThemeColors;
   styles: AppStyles;
   setMode: (mode: ThemeMode) => void;
   setAccent: (key: AccentKey) => void;
+  setStyle: (style: ThemeStyle) => void;
 };
 
 const ThemeContext = createContext<ThemeValue | null>(null);
@@ -39,6 +43,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     systemScheme === "light" ? "light" : "dark",
   );
   const [accentKey, setAccentKey] = useState<AccentKey>("blue");
+  const [style, setStyleState] = useState<ThemeStyle>("classic");
 
   useEffect(() => {
     AsyncStorage.getItem(THEME_KEY)
@@ -51,6 +56,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         if (stored) setAccentKey(stored as AccentKey);
       })
       .catch((error) => console.error("Failed to load accent", error));
+    AsyncStorage.getItem(STYLE_KEY)
+      .then((stored) => {
+        if (stored === "classic" || stored === "material") setStyleState(stored);
+      })
+      .catch((error) => console.error("Failed to load theme style", error));
   }, []);
 
   const value = useMemo<ThemeValue>(() => {
@@ -66,16 +76,24 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         console.error("Failed to save accent", error),
       );
     };
-    const colors: ThemeColors = buildAccentTheme(accentKey, mode);
+    const applyStyle = (next: ThemeStyle) => {
+      setStyleState(next);
+      AsyncStorage.setItem(STYLE_KEY, next).catch((error) =>
+        console.error("Failed to save theme style", error),
+      );
+    };
+    const colors: ThemeColors = buildAccentTheme(accentKey, mode, style);
     return {
       mode,
       accentKey,
+      style,
       colors,
-      styles: createStyles(colors),
+      styles: createStyles(colors, style),
       setMode: apply,
       setAccent: applyAccent,
+      setStyle: applyStyle,
     };
-  }, [accentKey, mode]);
+  }, [accentKey, mode, style]);
 
   return (
     <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>

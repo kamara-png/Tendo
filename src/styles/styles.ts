@@ -53,6 +53,51 @@ export const lightColors: ThemeColors = {
   ],
 };
 
+/**
+ * Material Design 3 tonal palette. Surfaces step through the MD3 tonal
+ * roles (surface, surfaceContainer, surfaceContainerHighest) so cards and
+ * rows read with real elevation even without shadows.
+ */
+export const materialDarkColors: ThemeColors = {
+  background: "#141218",
+  surface: "#1d1b20",
+  surfaceAlt: "#26232b",
+  border: "#36343b",
+  text: "#e6e0e9",
+  muted: "#cac4d0",
+  accent: "#d0bcff",
+  onAccent: "#0f1b24",
+  danger: "#f2b8b5",
+  palette: [
+    "#8fa9d9",
+    "#7bbfa8",
+    "#d9a15f",
+    "#d98a97",
+    "#a99ad9",
+    "#9ac48f",
+  ],
+};
+
+export const materialLightColors: ThemeColors = {
+  background: "#fdf7fe",
+  surface: "#ffffff",
+  surfaceAlt: "#f3edf7",
+  border: "#e2dfe7",
+  text: "#1d1b20",
+  muted: "#49454f",
+  accent: "#6750a4",
+  onAccent: "#ffffff",
+  danger: "#b3261e",
+  palette: [
+    "#4f6fae",
+    "#2f8578",
+    "#b5792f",
+    "#b05563",
+    "#6f5fae",
+    "#4f8a3f",
+  ],
+};
+
 export type AccentKey =
   | "blue"
   | "teal"
@@ -93,6 +138,16 @@ const mix = (a: Rgb, b: Rgb, ratio: number): Rgb =>
 const tint = (base: string, accent: string, ratio: number) =>
   rgbToHex(mix(hexToRgb(base), hexToRgb(accent), ratio));
 
+/** Which visual language the app uses. */
+export type ThemeStyle = "classic" | "material";
+
+const baseFor = (style: ThemeStyle, mode: "dark" | "light"): ThemeColors => {
+  if (style === "material") {
+    return mode === "dark" ? materialDarkColors : materialLightColors;
+  }
+  return mode === "dark" ? darkColors : lightColors;
+};
+
 /**
  * Derive a full calm theme from the chosen accent: backgrounds and surfaces
  * get a soft tint toward the hue while text stays neutral for readability.
@@ -100,15 +155,19 @@ const tint = (base: string, accent: string, ratio: number) =>
 export function buildAccentTheme(
   key: AccentKey,
   mode: "dark" | "light",
+  style: ThemeStyle = "classic",
 ): ThemeColors {
-  const base = mode === "dark" ? darkColors : lightColors;
+  const base = baseFor(style, mode);
   const preset = ACCENTS.find((a) => a.key === key) ?? ACCENTS[0];
   const accent = mode === "dark" ? preset.dark : preset.light;
+  // Material keeps its tonal surfaces cleaner, so tint them less.
+  const [bgTint, surfaceTint, altTint, borderTint] =
+    style === "material" ? [0.04, 0.03, 0.05, 0.08] : [0.07, 0.06, 0.07, 0.1];
   return {
-    background: tint(base.background, accent, 0.07),
-    surface: tint(base.surface, accent, 0.06),
-    surfaceAlt: tint(base.surfaceAlt, accent, 0.07),
-    border: tint(base.border, accent, 0.1),
+    background: tint(base.background, accent, bgTint),
+    surface: tint(base.surface, accent, surfaceTint),
+    surfaceAlt: tint(base.surfaceAlt, accent, altTint),
+    border: tint(base.border, accent, borderTint),
     text: base.text,
     muted: base.muted,
     accent,
@@ -124,7 +183,19 @@ export const fonts = {
   bold: "Inter_700Bold",
 };
 
-export function createStyles(colors: ThemeColors) {
+export function createStyles(colors: ThemeColors, style: ThemeStyle = "classic") {
+  const material = style === "material";
+  // Material Design 3 shapes: roomier corners and outlined (tonal) cards.
+  const cardRadius = material ? 20 : 12;
+  const inputRadius = material ? 16 : 10;
+  const buttonRadius = material ? 28 : 10;
+  const cardOutline = material
+    ? {
+        borderWidth: 1,
+        borderColor: colors.border,
+      }
+    : {};
+
   return StyleSheet.create({
     container: {
       flex: 1,
@@ -169,8 +240,9 @@ export function createStyles(colors: ThemeColors) {
       backgroundColor: colors.surface,
       paddingVertical: 16,
       paddingHorizontal: 16,
-      borderRadius: 12,
+      borderRadius: cardRadius,
       marginBottom: 10,
+      ...cardOutline,
     },
     habitName: {
       color: colors.text,
@@ -203,7 +275,7 @@ export function createStyles(colors: ThemeColors) {
     },
     modalCard: {
       backgroundColor: colors.surface,
-      borderRadius: 16,
+      borderRadius: material ? 28 : 16,
       padding: 20,
     },
     modalTitle: {
@@ -219,7 +291,7 @@ export function createStyles(colors: ThemeColors) {
       color: colors.text,
       fontFamily: fonts.regular,
       fontSize: 16,
-      borderRadius: 10,
+      borderRadius: inputRadius,
       paddingHorizontal: 14,
       paddingVertical: 12,
       marginBottom: 16,
@@ -235,9 +307,9 @@ export function createStyles(colors: ThemeColors) {
       gap: 10,
     },
     modalButton: {
-      paddingHorizontal: 16,
+      paddingHorizontal: 20,
       paddingVertical: 10,
-      borderRadius: 10,
+      borderRadius: buttonRadius,
     },
     modalButtonText: {
       fontFamily: fonts.bold,
@@ -306,10 +378,11 @@ export function createStyles(colors: ThemeColors) {
     },
     noteCard: {
       backgroundColor: colors.surface,
-      borderRadius: 12,
+      borderRadius: cardRadius,
       paddingVertical: 14,
       paddingHorizontal: 16,
       marginBottom: 10,
+      ...cardOutline,
     },
     noteCardTitle: {
       color: colors.text,
@@ -462,9 +535,10 @@ export function createStyles(colors: ThemeColors) {
     },
     streakCard: {
       backgroundColor: colors.surface,
-      borderRadius: 12,
+      borderRadius: cardRadius,
       padding: 16,
-      marginBottom: 10,
+      marginBottom: 12,
+      ...cardOutline,
     },
     streakHeader: {
       flexDirection: "row",
@@ -499,7 +573,7 @@ export function createStyles(colors: ThemeColors) {
       backgroundColor: colors.background,
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: 10,
+      borderRadius: buttonRadius,
       paddingVertical: 10,
     },
     streakCheckinActive: {
@@ -529,11 +603,12 @@ export function createStyles(colors: ThemeColors) {
     statSummaryCard: {
       flex: 1,
       backgroundColor: colors.surface,
-      borderRadius: 12,
+      borderRadius: cardRadius,
       paddingVertical: 16,
       alignItems: "center",
       justifyContent: "center",
       gap: 4,
+      ...cardOutline,
     },
     statSummaryIcon: {
       marginBottom: 4,
@@ -552,9 +627,10 @@ export function createStyles(colors: ThemeColors) {
     },
     statCard: {
       backgroundColor: colors.surface,
-      borderRadius: 12,
+      borderRadius: cardRadius,
       padding: 16,
       marginBottom: 12,
+      ...cardOutline,
     },
     heatmapGrid: {
       flexDirection: "row",
@@ -679,8 +755,9 @@ export function createStyles(colors: ThemeColors) {
     },
     settingsCard: {
       backgroundColor: colors.surface,
-      borderRadius: 12,
+      borderRadius: cardRadius,
       overflow: "hidden",
+      ...cardOutline,
     },
     settingsRow: {
       flexDirection: "row",
@@ -751,6 +828,176 @@ export function createStyles(colors: ThemeColors) {
     },
     dangerButton: {
       backgroundColor: colors.danger,
+    },
+    // Theme style selector (Classic / Material)
+    themeStyleRow: {
+      flexDirection: "row",
+      backgroundColor: colors.background,
+      borderRadius: inputRadius,
+      padding: 4,
+      gap: 4,
+      marginHorizontal: 14,
+      marginBottom: 14,
+    },
+    themeStyleOption: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 8,
+      borderRadius: inputRadius - 4,
+    },
+    themeStyleOptionActive: {
+      backgroundColor: colors.accent,
+    },
+    themeStyleOptionText: {
+      color: colors.muted,
+      fontFamily: fonts.semibold,
+      fontWeight: "600",
+      fontSize: 13,
+    },
+    themeStyleOptionTextActive: {
+      color: colors.onAccent,
+      fontFamily: fonts.bold,
+      fontWeight: "700",
+    },
+    // Notes editor save pill
+    editorSavePill: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: buttonRadius,
+      backgroundColor: colors.accent,
+    },
+    editorSavePillSaved: {
+      backgroundColor: colors.surfaceAlt,
+    },
+    editorSavePillText: {
+      color: colors.onAccent,
+      fontFamily: fonts.bold,
+      fontWeight: "700",
+      fontSize: 14,
+    },
+    editorSavePillTextSaved: {
+      color: colors.accent,
+    },
+    // Streaks hero summary
+    streakSummaryRow: {
+      flexDirection: "row",
+      gap: 10,
+      marginBottom: 16,
+    },
+    streakSummaryCard: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      borderRadius: cardRadius,
+      paddingVertical: 14,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 4,
+      ...cardOutline,
+    },
+    streakSummaryValue: {
+      color: colors.accent,
+      fontFamily: fonts.bold,
+      fontSize: 24,
+      fontWeight: "900",
+    },
+    streakSummaryLabel: {
+      color: colors.muted,
+      fontFamily: fonts.semibold,
+      fontSize: 11,
+      fontWeight: "600",
+      textAlign: "center",
+    },
+    streakCardHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      marginBottom: 14,
+    },
+    streakBadge: {
+      width: 44,
+      height: 44,
+      borderRadius: material ? 14 : 22,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    streakBadgeText: {
+      color: colors.onAccent,
+      fontFamily: fonts.bold,
+      fontWeight: "800",
+      fontSize: 17,
+    },
+    streakTitleBlock: {
+      flex: 1,
+    },
+    streakTitle: {
+      color: colors.text,
+      fontFamily: fonts.semibold,
+      fontWeight: "600",
+      fontSize: 16,
+    },
+    streakSubtitle: {
+      color: colors.muted,
+      fontFamily: fonts.regular,
+      fontSize: 12,
+      marginTop: 2,
+    },
+    streakWeekBar: {
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: colors.surfaceAlt,
+      marginBottom: 12,
+      overflow: "hidden",
+    },
+    streakWeekBarFill: {
+      height: "100%",
+      borderRadius: 3,
+    },
+    streakDayNumber: {
+      color: colors.muted,
+      fontFamily: fonts.regular,
+      fontSize: 9,
+    },
+    streakDayTodayLabel: {
+      color: colors.accent,
+      fontFamily: fonts.bold,
+      fontWeight: "700",
+      fontSize: 11,
+    },
+    // App updates section
+    updateProgressTrack: {
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: colors.surfaceAlt,
+      overflow: "hidden",
+      marginTop: 10,
+    },
+    updateProgressFill: {
+      height: "100%",
+      backgroundColor: colors.accent,
+      borderRadius: 3,
+    },
+    updateNotes: {
+      color: colors.muted,
+      fontFamily: fonts.regular,
+      fontSize: 13,
+      lineHeight: 19,
+      marginTop: 8,
+    },
+    updateBadge: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 12,
+      backgroundColor: colors.accent,
+    },
+    updateBadgeText: {
+      color: colors.onAccent,
+      fontFamily: fonts.bold,
+      fontWeight: "700",
+      fontSize: 11,
     },
   });
 }

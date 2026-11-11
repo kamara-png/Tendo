@@ -48,7 +48,20 @@ import {
   saveHabits,
   STORAGE_KEYS,
 } from "../../lib/storage";
-import { ACCENTS, sizes, type AccentKey } from "../../styles/styles";
+import {
+  appUpdatesSupported,
+  checkForUpdates,
+  hydrateUpdateCache,
+  installedVersion,
+  startUpdate,
+  useAppUpdate,
+} from "../../lib/useAppUpdate";
+import {
+  ACCENTS,
+  sizes,
+  type AccentKey,
+  type ThemeStyle,
+} from "../../styles/styles";
 import { useAppTheme } from "../../theme";
 
 const DATA_KEYS: Record<string, string> = {
@@ -101,9 +114,19 @@ function ToggleRow({
 }
 
 export default function SettingsScreen() {
-  const { colors, styles, mode, setMode, accentKey, setAccent } = useAppTheme();
+  const {
+    colors,
+    styles,
+    mode,
+    setMode,
+    accentKey,
+    setAccent,
+    style: themeStyle,
+    setStyle,
+  } = useAppTheme();
   const insets = useSafeAreaInsets();
   const bottomPad = insets.bottom + sizes.tabBarHeight + 24;
+  const update = useAppUpdate();
   const [settings, setSettings] = useState<SettingsState>(DEFAULT_SETTINGS);
 
   const [confirmTarget, setConfirmTarget] = useState<
@@ -119,6 +142,12 @@ export default function SettingsScreen() {
   );
 
   const dailyQueueRef = useRef<Promise<void>>(Promise.resolve());
+
+  const [whatsNewVisible, setWhatsNewVisible] = useState(false);
+
+  useEffect(() => {
+    void hydrateUpdateCache();
+  }, []);
 
   const refreshPermission = useCallback(async () => {
     setPermissionGranted(await getReminderPermissionStatus());
@@ -374,6 +403,11 @@ export default function SettingsScreen() {
         setAccent(accentValue as AccentKey);
       }
 
+      const styleValue = source.themeStyle;
+      if (styleValue === "classic" || styleValue === "material") {
+        setStyle(styleValue);
+      }
+
       setImportVisible(false);
       setImportText("");
       setImportError(null);
@@ -392,6 +426,28 @@ export default function SettingsScreen() {
     : permissionGranted === false
       ? "Notifications off"
       : "System alarms on";
+
+  const updateStatusLabel = () => {
+    if (!appUpdatesSupported) {
+      return isExpoGo()
+        ? "In-app updates need a release build"
+        : "Updates unavailable here";
+    }
+    switch (update.phase) {
+      case "checking":
+        return "Checking GitHub...";
+      case "upToDate":
+        return "You're up to date";
+      case "available":
+        return `v${update.release?.version ?? ""} is available`;
+      case "downloading":
+        return `Downloading — ${update.progress}%`;
+      case "installing":
+        return "Opening installer...";
+      default:
+        return `Installed v${installedVersion()} · checked automatically`;
+    }
+  };
 
   return (
     <SafeAreaView edges={["top"]} style={styles.container}>
@@ -449,6 +505,56 @@ export default function SettingsScreen() {
                     {selected ? (
                       <Ionicons name="checkmark" size={18} color={colors.onAccent} />
                     ) : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+            <View style={styles.settingsRowDivider} />
+            <View style={styles.settingsRow}>
+              <View style={styles.settingsRowIcon}>
+                <Ionicons name="layers-outline" size={20} color={colors.accent} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.settingsRowLabel}>Theme style</Text>
+                <Text style={styles.settingsRowSub}>
+                  {themeStyle === "material"
+                    ? "Material · tonal surfaces and rounded shapes"
+                    : "Classic · Tendo's own calm look"}
+                </Text>
+              </View>
+            </View>
+            <View
+              style={styles.themeStyleRow}
+              accessibilityRole="radiogroup"
+              accessibilityLabel="Theme style"
+            >
+              {(
+                [
+                  { key: "classic", label: "Classic" },
+                  { key: "material", label: "Material" },
+                ] as { key: ThemeStyle; label: string }[]
+              ).map((option) => {
+                const selected = themeStyle === option.key;
+                return (
+                  <Pressable
+                    key={option.key}
+                    style={[
+                      styles.themeStyleOption,
+                      selected && styles.themeStyleOptionActive,
+                    ]}
+                    onPress={() => setStyle(option.key)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={`${option.label} theme style`}
+                  >
+                    <Text
+                      style={[
+                        styles.themeStyleOptionText,
+                        selected && styles.themeStyleOptionTextActive,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
                   </Pressable>
                 );
               })}
@@ -551,6 +657,100 @@ export default function SettingsScreen() {
               </View>
               <Text style={styles.settingsRowLabel}>Send test alarm</Text>
             </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.settingsSection}>
+          <Text style={styles.settingsSectionTitle}>App updates</Text>
+          <View style={styles.settingsCard}>
+            <View style={styles.settingsRow}>
+              <View style={styles.settingsRowIcon}>
+                <Ionicons
+                  name="cloud-download-outline"
+                  size={20}
+                  color={colors.accent}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.settingsRowLabel}>Version</Text>
+                <Text style={styles.settingsRowSub}>
+                  {updateStatusLabel()}
+                </Text>
+              </View>
+              {update.phase === "available" && update.release ? (
+                <View style={styles.updateBadge}>
+                  <Text style={styles.updateBadgeText}>
+                    {update.release.version}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+            <View style={styles.settingsRowDivider} />
+            <Pressable
+              style={styles.settingsRow}
+              onPress={() => void checkForUpdates({ force: true })}
+              disabled={!appUpdatesSupported || update.phase === "checking"}
+              accessibilityRole="button"
+              accessibilityLabel="Check for updates"
+            >
+              <View style={styles.settingsRowIcon}>
+                <Ionicons name="refresh" size={20} color={colors.accent} />
+              </View>
+              <Text style={styles.settingsRowLabel}>
+                {update.phase === "checking" ? "Checking..." : "Check for updates"}
+              </Text>
+            </Pressable>
+            {update.release?.notes ? (
+              <>
+                <View style={styles.settingsRowDivider} />
+                <Pressable
+                  style={styles.settingsRow}
+                  onPress={() => setWhatsNewVisible(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Show release notes"
+                >
+                  <View style={styles.settingsRowIcon}>
+                    <Ionicons
+                      name="document-text-outline"
+                      size={20}
+                      color={colors.accent}
+                    />
+                  </View>
+                  <Text style={styles.settingsRowLabel}>{"What's new"}</Text>
+                </Pressable>
+              </>
+            ) : null}
+            {update.phase === "downloading" || update.phase === "installing" ? (
+              <View style={styles.updateProgressTrack}>
+                <View
+                  style={[
+                    styles.updateProgressFill,
+                    { width: `${update.progress}%` },
+                  ]}
+                />
+              </View>
+            ) : null}
+            {update.error ? (
+              <Text style={styles.settingsNote}>{update.error}</Text>
+            ) : null}
+            {update.phase === "available" && update.release ? (
+              <View style={styles.modalActions}>
+                <Pressable
+                  style={[styles.modalButton, styles.saveButton]}
+                  onPress={() => void startUpdate()}
+                >
+                  <Text style={[styles.modalButtonText, styles.saveButtonText]}>
+                    Update to {update.release.version}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+            {!appUpdatesSupported ? (
+              <Text style={[styles.settingsNote, { color: colors.muted }]}>
+                In-app updates need the Android release build. Checks are
+                disabled in Expo Go and dev builds.
+              </Text>
+            ) : null}
           </View>
         </View>
 
@@ -758,6 +958,40 @@ export default function SettingsScreen() {
               >
                 <Text style={[styles.modalButtonText, styles.saveButtonText]}>
                   Import
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      <Modal
+        visible={whatsNewVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setWhatsNewVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setWhatsNewVisible(false)}
+          />
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>
+              {"What's new in "}
+              {update.release?.version ?? ""}
+            </Text>
+            <ScrollView style={{ maxHeight: 260 }}>
+              <Text style={styles.updateNotes}>
+                {update.release?.notes || "No release notes were published."}
+              </Text>
+            </ScrollView>
+            <View style={[styles.modalActions, { marginTop: 16 }]}>
+              <Pressable
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={() => setWhatsNewVisible(false)}
+              >
+                <Text style={[styles.modalButtonText, styles.saveButtonText]}>
+                  Close
                 </Text>
               </Pressable>
             </View>

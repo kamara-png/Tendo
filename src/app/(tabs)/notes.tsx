@@ -21,7 +21,7 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { colorForIndex } from "../../lib/colors";
-import { tapFeedback } from "../../lib/haptics";
+import { successFeedback, tapFeedback } from "../../lib/haptics";
 import { readSettings } from "../../lib/settings";
 import {
   loadNotes,
@@ -381,26 +381,52 @@ export default function NotesScreen() {
               <Text style={styles.noteEditorHeaderTitle} numberOfLines={1}>
                 Notes
               </Text>
-              <View style={styles.noteEditorHeaderActions}>
-                <View
-                  accessible
-                  accessibilityLabel={
+              <Pressable
+                style={[
+                  styles.editorSavePill,
+                  saveStatus === "saved" && styles.editorSavePillSaved,
+                ]}
+                onPress={() => {
+                  if (saveStatus === "saved") return;
+                  void successFeedback();
+                  void flushSave();
+                }}
+                disabled={saveStatus === "saved" || saveStatus === "saving"}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  saveStatus === "saved"
+                    ? "All changes saved"
+                    : saveStatus === "saving"
+                      ? "Saving changes"
+                      : "Save note"
+                }
+              >
+                <Ionicons
+                  name={
                     saveStatus === "saved"
-                      ? "All changes saved"
+                      ? "checkmark"
                       : saveStatus === "saving"
-                        ? "Saving changes"
-                        : "Unsaved changes"
+                        ? "sync-circle-outline"
+                        : "save-outline"
                   }
+                  size={15}
+                  color={
+                    saveStatus === "saved" ? colors.accent : colors.onAccent
+                  }
+                />
+                <Text
+                  style={[
+                    styles.editorSavePillText,
+                    saveStatus === "saved" && styles.editorSavePillTextSaved,
+                  ]}
                 >
-                  <Ionicons
-                    name={saveStatus === "saved" ? "checkmark" : "save-outline"}
-                    size={22}
-                    color={
-                      saveStatus === "saved" ? colors.accent : colors.muted
-                    }
-                  />
-                </View>
-              </View>
+                  {saveStatus === "saved"
+                    ? "Saved"
+                    : saveStatus === "saving"
+                      ? "Saving..."
+                      : "Save"}
+                </Text>
+              </Pressable>
             </View>
 
             <TextInput

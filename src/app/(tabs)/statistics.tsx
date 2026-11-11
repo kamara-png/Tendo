@@ -176,9 +176,16 @@ export default function StatisticsScreen() {
   const [habitsCompleted, setHabitsCompleted] = useState(0);
   const [notesWords, setNotesWords] = useState(0);
   const [notesChars, setNotesChars] = useState(0);
+  const [pinnedNotes, setPinnedNotes] = useState(0);
+  const [notesEditedThisWeek, setNotesEditedThisWeek] = useState(0);
+  const [longestNoteWords, setLongestNoteWords] = useState(0);
   const [checkedToday, setCheckedToday] = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
   const [longestCurrent, setLongestCurrent] = useState(0);
+  const [unionCurrentStreak, setUnionCurrentStreak] = useState(0);
+  const [activeDays30, setActiveDays30] = useState(0);
+  const [avgPerDay30, setAvgPerDay30] = useState(0);
+  const [perfectDays30, setPerfectDays30] = useState(0);
   const [weekBars, setWeekBars] = useState<WeekBar[]>([]);
   const [totalCheckins, setTotalCheckins] = useState(0);
   const [bestWeekday, setBestWeekday] = useState("—");
@@ -237,6 +244,14 @@ export default function StatisticsScreen() {
 
           const words = notes.reduce((sum, n) => sum + countWords(n.body), 0);
           const chars = notes.reduce((sum, n) => sum + n.body.length, 0);
+          const longestNote = notes.reduce(
+            (max, n) => Math.max(max, countWords(n.body)),
+            0,
+          );
+          const weekStartTime = weekStart.getTime();
+          const editedThisWeek = notes.filter(
+            (n) => n.updatedAt >= weekStartTime,
+          ).length;
 
           const nextWeekStart = shiftDays(weekStart, 7);
           const lastWeekStart = shiftDays(weekStart, -7);
@@ -328,6 +343,27 @@ export default function StatisticsScreen() {
               .sort((a, b) => b.words - a.words)
               .slice(0, 5),
           );
+
+          // Consistency: a check-in streak across ALL streaks combined, plus
+          // 30-day activity (active days, daily average, perfect days).
+          setUnionCurrentStreak(currentStreak(Array.from(countByDay.keys())));
+          const last30Start = startOfDay(shiftDays(today, -29));
+          let activeDays = 0;
+          let perfectDays = 0;
+          let sum30 = 0;
+          for (let i = 0; i < 30; i++) {
+            const key = dayKey(shiftDays(last30Start, i));
+            const c = countByDay.get(key) ?? 0;
+            sum30 += c;
+            if (c > 0) activeDays += 1;
+            if (streaks.length > 0 && c >= streaks.length) perfectDays += 1;
+          }
+          setActiveDays30(activeDays);
+          setAvgPerDay30(Math.round((sum30 / 30) * 10) / 10);
+          setPerfectDays30(perfectDays);
+          setPinnedNotes(notes.filter((n) => n.pinned).length);
+          setNotesEditedThisWeek(editedThisWeek);
+          setLongestNoteWords(longestNote);
         } catch (error) {
           console.error("Failed to load statistics", error);
         }
@@ -416,6 +452,17 @@ export default function StatisticsScreen() {
           <Text style={styles.ringCaption}>
             {completed} of {total} completed
           </Text>
+          <View style={styles.statDivider} />
+          <StatRow
+            icon="time-outline"
+            label="Checked off today"
+            value={String(habitsDone)}
+          />
+          <StatRow
+            icon="close-circle-outline"
+            label="Still open"
+            value={String(Math.max(0, total - completed))}
+          />
         </View>
 
         <View style={styles.statCard}>
@@ -447,6 +494,22 @@ export default function StatisticsScreen() {
                 : String(Math.round(notesWords / summary.notes))
             }
           />
+          <View style={styles.statDivider} />
+          <StatRow
+            icon="pin-outline"
+            label="Pinned notes"
+            value={String(pinnedNotes)}
+          />
+          <StatRow
+            icon="create-outline"
+            label="Edited this week"
+            value={String(notesEditedThisWeek)}
+          />
+          <StatRow
+            icon="trophy-outline"
+            label="Longest note"
+            value={`${longestNoteWords} word${longestNoteWords === 1 ? "" : "s"}`}
+          />
         </View>
 
         <View style={styles.statCard}>
@@ -469,6 +532,21 @@ export default function StatisticsScreen() {
             icon="ribbon-outline"
             label="Longest current streak"
             value={`${longestCurrent} day${longestCurrent === 1 ? "" : "s"}`}
+          />
+          <StatRow
+            icon="sparkles-outline"
+            label="Check-in streak (all)"
+            value={`${unionCurrentStreak} day${unionCurrentStreak === 1 ? "" : "s"}`}
+          />
+          <StatRow
+            icon="calendar-number-outline"
+            label="Avg per day (30d)"
+            value={String(avgPerDay30)}
+          />
+          <StatRow
+            icon="star-outline"
+            label="Perfect days (30d)"
+            value={String(perfectDays30)}
           />
         </View>
 
@@ -496,6 +574,19 @@ export default function StatisticsScreen() {
             icon={weekDelta >= 0 ? "arrow-up-outline" : "arrow-down-outline"}
             label="Difference"
             value={`${weekDelta > 0 ? "+" : ""}${weekDelta}`}
+          />
+          <StatRow
+            icon="speedometer-outline"
+            label="Change"
+            value={
+              lastWeekCheckins === 0
+                ? weekDelta === 0
+                  ? "0%"
+                  : "New activity"
+                : `${weekDelta >= 0 ? "+" : ""}${Math.round(
+                    (weekDelta / lastWeekCheckins) * 100,
+                  )}%`
+            }
           />
         </View>
 
@@ -604,6 +695,12 @@ export default function StatisticsScreen() {
             icon="calendar-outline"
             label="Most active day"
             value={bestWeekday}
+          />
+          <View style={styles.statDivider} />
+          <StatRow
+            icon="flash-outline"
+            label="Active days (30d)"
+            value={`${activeDays30}/30`}
           />
         </View>
 

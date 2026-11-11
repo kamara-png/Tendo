@@ -19,7 +19,8 @@ import {
 import { sizes } from "../../styles/styles";
 import { colorForIndex } from "../../lib/colors";
 import { dayKey, todayKey } from "../../lib/dates";
-import { tapFeedback } from "../../lib/haptics";
+import { successFeedback, tapFeedback } from "../../lib/haptics";
+import { currentStreak, longestStreak } from "../../lib/streaks";
 import { readSettings } from "../../lib/settings";
 import {
   loadStreaks,
@@ -29,8 +30,8 @@ import {
 } from "../../lib/storage";
 import { useAppTheme } from "../../theme";
 
-const WEEK_LABELS = ["M", "T", "W", "Th", "F", "Sat", "S"];
-const SUNDAY_WEEK_LABELS = ["S", "M", "T", "W", "Th", "F", "Sat"];
+const WEEK_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const SUNDAY_WEEK_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const getWeekDays = (mondayStart: boolean) => {
   const today = new Date();
@@ -58,6 +59,7 @@ export default function StreaksScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [inputText, setInputText] = useState("");
+  const [menuStreakId, setMenuStreakId] = useState<string | null>(null);
 
   const weekDays = useMemo(
     () => getWeekDays(weekStartsMonday),
@@ -65,6 +67,17 @@ export default function StreaksScreen() {
   );
   const weekLabels = weekStartsMonday ? WEEK_LABELS : SUNDAY_WEEK_LABELS;
   const today = todayKey();
+
+  // Hero numbers, recomputed from the live streak state.
+  const summary = useMemo(() => {
+    const doneToday = streaks.filter((s) => s.checks.includes(today)).length;
+    const bestCurrent = streaks.reduce(
+      (max, s) => Math.max(max, currentStreak(s.checks)),
+      0,
+    );
+    const totalCheckins = streaks.reduce((sum, s) => sum + s.checks.length, 0);
+    return { doneToday, bestCurrent, totalCheckins };
+  }, [streaks, today]);
 
   // Re-read the week-start preference whenever the tab gains focus so a change
   // in Settings is reflected without restarting the app.
@@ -132,6 +145,7 @@ export default function StreaksScreen() {
   };
 
   const openEditModal = (id: string, currentName: string) => {
+    setMenuStreakId(null);
     setEditingId(id);
     setInputText(currentName);
     setModalVisible(true);
@@ -161,6 +175,7 @@ export default function StreaksScreen() {
   };
 
   const deleteStreak = async (id: string) => {
+    setMenuStreakId(null);
     const { confirmDelete } = await readSettings();
     if (!confirmDelete) {
       removeStreak(id);
@@ -177,7 +192,10 @@ export default function StreaksScreen() {
   };
 
   const toggleCheck = (id: string) => {
-    void tapFeedback("medium");
+    const target = streaks.find((s) => s.id === id);
+    const willCheck = target ? !target.checks.includes(today) : false;
+    if (willCheck) void successFeedback();
+    else void tapFeedback("light");
     setStreaks((prev) =>
       prev.map((s) => {
         if (s.id !== id) return s;
@@ -190,55 +208,96 @@ export default function StreaksScreen() {
     );
   };
 
+  const menuStreak = streaks.find((s) => s.id === menuStreakId) ?? null;
+
   const renderStreak = ({ item, index }: { item: Streak; index: number }) => {
     const checkedToday = item.checks.includes(today);
     const itemColor = colorForIndex(index, colors.palette);
+    const streakNow = currentStreak(item.checks);
+    const bestEver = longestStreak(item.checks);
+    const doneThisWeek = weekDays.filter((d) =>
+      item.checks.includes(dayKey(d)),
+    ).length;
+
     return (
       <View style={styles.streakCard}>
-        <View style={styles.streakHeader}>
-          <Ionicons name="flame" size={20} color={itemColor} />
-          <Text style={styles.streakName}>{item.name}</Text>
+        <View style={styles.streakCardHeader}>
+          <View
+            style={[styles.streakBadge, { backgroundColor: itemColor }]}
+            accessibilityLabel={`Current streak ${streakNow} days`}
+          >
+            <Text style={styles.streakBadgeText}>
+              {streakNow > 99 ? "99+" : streakNow}
+            </Text>
+          </View>
+          <View style={styles.streakTitleBlock}>
+            <Text style={styles.streakTitle} numberOfLines={1}>
+              {item.name}
+            </Text>
+            <Text style={styles.streakSubtitle} numberOfLines={1}>
+              {bestEver > 0
+                ? `Best ${bestEver} day${bestEver === 1 ? "" : "s"} · ${item.checks.length} check-in${item.checks.length === 1 ? "" : "s"}`
+                : "No check-ins yet"}
+            </Text>
+          </View>
           <Pressable
-            style={styles.editButton}
-            onPress={() => openEditModal(item.id, item.name)}
+            onPress={() => {
+              void tapFeedback("medium");
+              setMenuStreakId(item.id);
+            }}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel={`Edit ${item.name}`}
+            accessibilityLabel={`Options for ${item.name}`}
           >
-            <Ionicons name="create" size={20} color={colors.muted} />
+            <Ionicons name="ellipsis-vertical" size={18} color={colors.muted} />
           </Pressable>
-          <Pressable
-            style={styles.deleteButton}
-            onPress={() => deleteStreak(item.id)}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={`Delete ${item.name}`}
-          >
-            <Ionicons name="trash" size={20} color={colors.danger} />
-          </Pressable>
+        </View>
+
+        <View
+          style={styles.streakWeekBar}
+          accessibilityLabel={`${doneThisWeek} of 7 days this week`}
+        >
+          <View
+            style={[
+              styles.streakWeekBarFill,
+              { width: `${(doneThisWeek / 7) * 100}%`, backgroundColor: itemColor },
+            ]}
+          />
         </View>
 
         <View style={styles.streakWeek}>
           {weekDays.map((day, i) => {
-            const done = item.checks.includes(dayKey(day));
+            const key = dayKey(day);
+            const done = item.checks.includes(key);
             const isFuture = day.getTime() > Date.now();
+            const isToday = key === today;
             return (
               <Pressable
                 key={i}
                 style={styles.streakDay}
-                onPress={() => setSelectedDay(dayKey(day))}
+                onPress={() => setSelectedDay(key)}
                 disabled={isFuture}
                 hitSlop={4}
                 accessibilityRole="button"
                 accessibilityState={{ disabled: isFuture }}
                 accessibilityLabel={`${weekLabels[i]} ${day.toLocaleDateString()}`}
               >
-                <Text style={styles.streakDayLabel}>{weekLabels[i]}</Text>
+                <Text
+                  style={[
+                    styles.streakDayLabel,
+                    isToday && styles.streakDayTodayLabel,
+                  ]}
+                >
+                  {weekLabels[i]}
+                </Text>
                 <Ionicons
                   name={done ? "ellipse" : "ellipse-outline"}
                   size={18}
-                  color={done ? itemColor : colors.muted}
+                  color={
+                    done ? itemColor : isFuture ? colors.surfaceAlt : colors.muted
+                  }
                 />
+                <Text style={styles.streakDayNumber}>{day.getDate()}</Text>
               </Pressable>
             );
           })}
@@ -271,7 +330,7 @@ export default function StreaksScreen() {
               checkedToday && styles.streakCheckinTextActive,
             ]}
           >
-            {checkedToday ? "Checked in" : "Check in today"}
+            {checkedToday ? "Checked in today" : "Check in today"}
           </Text>
         </TouchableOpacity>
       </View>
@@ -304,6 +363,31 @@ export default function StreaksScreen() {
           data={streaks}
           keyExtractor={(item) => item.id}
           contentContainerStyle={[styles.listContent, { paddingBottom: bottomPad }]}
+          ListHeaderComponent={
+            <View style={styles.streakSummaryRow}>
+              <View style={styles.streakSummaryCard}>
+                <Ionicons name="flame" size={16} color={colors.accent} />
+                <Text style={styles.streakSummaryValue}>
+                  {summary.bestCurrent}
+                </Text>
+                <Text style={styles.streakSummaryLabel}>Current best</Text>
+              </View>
+              <View style={styles.streakSummaryCard}>
+                <Ionicons name="checkmark-done" size={16} color={colors.accent} />
+                <Text style={styles.streakSummaryValue}>
+                  {summary.doneToday}/{streaks.length}
+                </Text>
+                <Text style={styles.streakSummaryLabel}>Done today</Text>
+              </View>
+              <View style={styles.streakSummaryCard}>
+                <Ionicons name="calendar" size={16} color={colors.accent} />
+                <Text style={styles.streakSummaryValue}>
+                  {summary.totalCheckins}
+                </Text>
+                <Text style={styles.streakSummaryLabel}>Check-ins</Text>
+              </View>
+            </View>
+          }
           renderItem={renderStreak}
         />
       )}
@@ -404,6 +488,93 @@ export default function StreaksScreen() {
               </Pressable>
             </View>
           </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={menuStreak !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuStreakId(null)}
+      >
+        <View style={styles.noteMenuOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setMenuStreakId(null)}
+            accessibilityRole="button"
+            accessibilityLabel="Close streak menu"
+          />
+          {menuStreak ? (
+            <View
+              style={[
+                styles.noteMenuSheet,
+                { paddingBottom: insets.bottom + 16 },
+              ]}
+            >
+              <View style={styles.noteMenuHandle} />
+
+              <View style={styles.noteMenuPreview}>
+                <Ionicons name="flame" size={20} color={colors.accent} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.noteMenuTitle} numberOfLines={1}>
+                    {menuStreak.name}
+                  </Text>
+                  <Text style={styles.noteMenuPreviewText} numberOfLines={1}>
+                    {currentStreak(menuStreak.checks)} day
+                    {currentStreak(menuStreak.checks) === 1 ? "" : "s"} current ·{" "}
+                    {menuStreak.checks.length} check-in
+                    {menuStreak.checks.length === 1 ? "" : "s"}
+                  </Text>
+                </View>
+              </View>
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.noteMenuAction,
+                  pressed && { backgroundColor: colors.surfaceAlt },
+                ]}
+                onPress={() => openEditModal(menuStreak.id, menuStreak.name)}
+                accessibilityRole="button"
+                accessibilityLabel="Rename streak"
+              >
+                <Ionicons name="create-outline" size={22} color={colors.accent} />
+                <Text style={styles.noteMenuActionText}>Rename streak</Text>
+              </Pressable>
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.noteMenuAction,
+                  pressed && { backgroundColor: colors.surfaceAlt },
+                ]}
+                onPress={() => void deleteStreak(menuStreak.id)}
+                accessibilityRole="button"
+                accessibilityLabel="Delete streak"
+              >
+                <Ionicons
+                  name="trash-outline"
+                  size={22}
+                  color={colors.danger}
+                />
+                <Text
+                  style={[styles.noteMenuActionText, { color: colors.danger }]}
+                >
+                  Delete streak
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.noteMenuCancel,
+                  pressed && { opacity: 0.75 },
+                ]}
+                onPress={() => setMenuStreakId(null)}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+              >
+                <Text style={styles.noteMenuCancelText}>Cancel</Text>
+              </Pressable>
+            </View>
+          ) : null}
         </View>
       </Modal>
     </SafeAreaView>

@@ -8,6 +8,7 @@ export const STORAGE_KEYS = {
   settings: "settings",
   theme: "theme",
   accent: "accent",
+  themeStyle: "themeStyle",
 } as const;
 
 export type Habit = {
