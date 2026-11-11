@@ -1,6 +1,6 @@
 [
   {
-    "version": "1.1.0",
+    "version": "1.1.1",
     "publishedAt": "2026-11-11T00:00:00Z",
     "added": [
       "In-app updates: Tendo checks GitHub releases daily and offers new APKs from Settings → App updates",

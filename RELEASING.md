@@ -17,7 +17,7 @@ Semantic versioning, `major.minor.patch`:
 - **Minor**: new features, backwards compatible.
 - **Major**: breaking changes or anything users must act on.
 
-`versionCode` is derived from the version (`major * 10000 + minor * 100 + patch`; `1.1.0` → `10100`), so keep minor and patch under 100. It must strictly increase for every published build; Android won't install a lower code over a higher one.
+`versionCode` is derived from the version (`major * 10000 + minor * 100 + patch`; `1.1.1` → `10100`), so keep minor and patch under 100. It must strictly increase for every published build; Android won't install a lower code over a higher one.
 
 ## Native changes need a new version
 
@@ -33,7 +33,7 @@ Tendo's release APK is a full binary — there is no OTA channel yet (adding `ex
 6. `node scripts/release.mjs X.Y.Z` (or `patch` / `minor` / `major`). Use `--dry-run` first to see the checks pass. It refuses to run with a dirty tree, off `main`, with a reused tag, or without notes.
 7. `git push origin main && git push origin vX.Y.Z`
 8. Watch **Build & Release**. It re-runs the checks, builds and verifies the signed APK (and the 50 MiB size cap), and publishes the GitHub Release.
-9. On a real phone with the previous version installed, open Tendo → **Settings → App updates → Check for updates**. Confirm the update card shows the new notes, the download completes, the installer opens, and your data survived. (Builds before 1.1.0 can't self-update; install `1.1.0` manually once.)
+9. On a real phone with the previous version installed, open Tendo → **Settings → App updates → Check for updates**. Confirm the update card shows the new notes, the download completes, the installer opens, and your data survived. (Builds before 1.1.1 can't self-update; install `1.1.1` manually once.)
 
 ## Hotfixes
 

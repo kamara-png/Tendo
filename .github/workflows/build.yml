@@ -190,7 +190,7 @@ jobs:
             echo
             echo "## Install on Android"
             echo
-            echo "Tendo 1.1.0 and later offer new releases inside the app (Settings → App updates). Older versions need the manual install below, once."
+            echo "Tendo 1.1.1 and later offer new releases inside the app (Settings → App updates). Older versions need the manual install below, once."
             echo
             echo "1. Download the \`.apk\` file below **on your phone** ($((SIZE / 1024 / 1024)) MiB — Wi-Fi recommended)."
             echo "2. Tap it in your downloads and allow installing from unknown sources when prompted."
