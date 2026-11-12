@@ -4,10 +4,14 @@ One page from merged code to an installed update. The design follows [Budgeter](
 
 ## Model
 
-- `main` is always releasable. CI (`ci.yml`) runs on every pull request and gates the APK build.
+- `main` is always releasable. CI (`ci.yml`) runs on every pull request and gates both the OTA publish and the APK build.
 - A release is an **annotated** `vX.Y.Z` tag on a commit on `main`. The tag is the version; `scripts/release.mjs` keeps `app.json`, `package.json` and the lockfile in step with it.
 - Release notes live in `src/constants/changelog.json`. The same entry is the in-app "What's new" and the GitHub Release body. The build fails if it's missing.
 - Never move or delete a published tag. If a release is broken, ship `X.Y.(Z+1)`.
+
+## OTA updates
+
+Every push to `main` that passes CI is published to the `production` EAS Update channel (`update.yml`). Installed apps pick OTA updates up automatically on their next launch; nothing needs to be tagged. `EXPO_TOKEN` must be set in the repository's Actions secrets or the publish is skipped with a warning.
 
 ## Versioning
 
@@ -17,11 +21,11 @@ Semantic versioning, `major.minor.patch`:
 - **Minor**: new features, backwards compatible.
 - **Major**: breaking changes or anything users must act on.
 
-`versionCode` is derived from the version (`major * 10000 + minor * 100 + patch`; `1.1.1` → `10100`), so keep minor and patch under 100. It must strictly increase for every published build; Android won't install a lower code over a higher one.
+`versionCode` is derived from the version (`major * 10000 + minor * 100 + patch`; `1.1.1` → `10101`), so keep minor and patch under 100. It must strictly increase for every published build; Android won't install a lower code over a higher one.
 
 ## Native changes need a new version
 
-Tendo's release APK is a full binary — there is no OTA channel yet (adding `expo-updates` would come with its own workflow, like Budgeter's `update.yml`). Any change that adds, removes or upgrades native code (`expo-*` / `react-native-*` modules, config plugins, `app.json` native fields) simply ships in the next tagged APK release. Bump the version in the same pull request when it changes what the build produces.
+`runtimeVersion` is the app version, so an OTA update only reaches builds with the same version. If a change adds, removes or upgrades anything with native code (an `expo-*` or `react-native-*` module, a config plugin, `app.json` native fields), **bump the version in the same pull request**. Otherwise the OTA publish lands on builds that lack the native module and crashes them. JS-only changes are safe to OTA to any build of the current version.
 
 ## Release day
 
@@ -46,6 +50,7 @@ Every APK is signed with the keystore in `android-signing/` (see its README; cre
 ## Checklist
 
 - [ ] CI green on `main`
+- [ ] `EXPO_TOKEN` Actions secret set so OTA publishes are not skipped
 - [ ] Version chosen per SemVer; native changes → version bumped
 - [ ] Changelog entry written for users, not copied from commit subjects
 - [ ] `node scripts/release.mjs … --dry-run` passes

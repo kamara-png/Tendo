@@ -1,0 +1,55 @@
+name: Publish OTA update
+
+on:
+  push:
+    branches: [main]
+
+# Never let two publishes race each other: a running publish always finishes,
+# and at most one queued publish waits behind it.
+concurrency:
+  group: ota-update-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: CI checks
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    name: Publish EAS Update
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Check EXPO_TOKEN
+        id: token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::warning::EXPO_TOKEN is not set; skipping OTA publish. Add it in Settings → Secrets and variables → Actions."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Setup EAS
+        if: steps.token.outputs.skip == 'false'
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Publish update
+        if: steps.token.outputs.skip == 'false'
+        run: eas update --channel production --non-interactive --message "$(git log -1 --pretty=%s)" --environment production

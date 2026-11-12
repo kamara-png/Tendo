@@ -3,16 +3,30 @@
     "name": "Tendo",
     "slug": "Tendo",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "tendo",
     "userInterfaceStyle": "automatic",
+    "updates": {
+      "url": "https://u.expo.dev/2135306b-7aa6-4e6e-9848-7853d2071a80",
+      "requestHeaders": {
+        "expo-channel-name": "production"
+      },
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
     "ios": {
       "bundleIdentifier": "com.kamarack.tendo",
       "icon": "./assets/images/icon.png"
     },
     "android": {
       "package": "com.kamarack.tendo",
+      "permissions": [
+        "REQUEST_INSTALL_PACKAGES"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
