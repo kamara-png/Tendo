@@ -6,9 +6,14 @@ const ALL_ABIS = "arm64-v8a,armeabi-v7a,x86,x86_64";
 const APP_BUNDLE_ABIS = "arm64-v8a,armeabi-v7a";
 const APK_ABIS = "arm64-v8a";
 
-/** Map an EAS build profile to the ABIs that build should compile. */
+/**
+ * Map an EAS build profile to the ABIs that build should compile. Anything
+ * that isn't an explicit dev or AAB profile (including a plain CI/local APK
+ * build, where EAS_BUILD_PROFILE is unset) gets the slim arm64-only APK set —
+ * that's what keeps the release APK under the 50 MiB cap.
+ */
 function architecturesForProfile(profile) {
-  if (!profile || profile === "development") return ALL_ABIS;
+  if (profile === "development") return ALL_ABIS;
   if (profile === "production-bundle") return APP_BUNDLE_ABIS;
   return APK_ABIS;
 }
