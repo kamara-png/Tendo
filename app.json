@@ -64,8 +64,9 @@
         {
           "android": {
             "minSdkVersion": 29,
-            "enableProguard": true,
-            "enableShrinkResources": true
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "enableBundleCompression": true
           }
         }
       ]

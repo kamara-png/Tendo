@@ -103,6 +103,15 @@ jobs:
       - name: Build release APK
         working-directory: android
         run: ./gradlew assembleRelease --no-daemon
+      - name: Upload Android artifacts
+        # Uploaded even when the size check below fails, so oversized builds
+        # can be inspected without rebuilding.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: ignore
       - name: Verify APK signature and size
         run: |
           set -euo pipefail
@@ -118,12 +127,6 @@ jobs:
             echo "::error::APK is $SIZE bytes, over the 50 MiB limit"
             exit 1
           fi
-      - name: Upload Android artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-release
-          path: android/app/build/outputs/apk/release/*.apk
-          if-no-files-found: error
 
   web:
     name: Web bundle
